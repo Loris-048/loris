@@ -129,7 +129,7 @@
                 <div class="custom-select-wrapper" id="ratioWrapper" title="选择生成比例">
                     <div class="custom-select-btn" onclick="toggleCustomSelect('ratioMenu', event)">
                         <span class="custom-select-value" id="ratioValue">自动</span>
-                        <i class="fas fa-chevron-up"></i>
+                        <i class="fas fa-chevron-down"></i>
                     </div>
                     <div class="custom-select-menu" id="ratioMenu">
                         <div class="custom-select-item selected" onclick="selectCustomOption('ratioMenu', 'ratioValue', 'aspectRatio', this, 'auto')">自动</div>
@@ -149,7 +149,7 @@
                 <div class="custom-select-wrapper" id="modeWrapper" title="选择模式">
                     <div class="custom-select-btn" onclick="toggleCustomSelect('modeMenu', event)">
                         <span class="custom-select-value" id="modeValue">图片生成</span>
-                        <i class="fas fa-chevron-up"></i>
+                        <i class="fas fa-chevron-down"></i>
                     </div>
                     <div class="custom-select-menu" id="modeMenu">
                         <div class="custom-select-item selected" onclick="selectModeOption(this, 'image-generation')">图片生成</div>
@@ -161,7 +161,7 @@
                     <div class="model-input-wrapper" onclick="toggleModelDropdown(event)">
                         <input type="text" id="modelSelect" class="model-input" value="nano-banana-fast" placeholder="输入或选择模型" onclick="toggleModelDropdown(event)" oninput="filterModelOptions()">
                         <button class="model-input-btn" onclick="toggleModelDropdown(event)" title="显示所有模型">
-                            <i class="fas fa-chevron-up"></i>
+                            <i class="fas fa-chevron-down"></i>
                         </button>
                     </div>
                     <div class="model-dropdown-menu" id="modelDropdownMenu">
@@ -191,7 +191,7 @@
                 <div class="custom-select-wrapper" id="sizeWrapper" title="选择尺寸">
                     <div class="custom-select-btn" onclick="toggleCustomSelect('sizeMenu', event)">
                         <span class="custom-select-value" id="sizeValue">1K</span>
-                        <i class="fas fa-chevron-up"></i>
+                        <i class="fas fa-chevron-down"></i>
                     </div>
                     <div class="custom-select-menu" id="sizeMenu">
                         <div class="custom-select-item selected" onclick="selectCustomOption('sizeMenu', 'sizeValue', 'imageSizeSelect', this, '1K')">1K</div>

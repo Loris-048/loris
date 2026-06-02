@@ -7052,12 +7052,14 @@ function openModal(item) {
                 const ratioInput = document.getElementById('suiteRatioInput');
                 if (ratioInput) {
                     ratioInput.value = item.ratio;
+                    syncCustomSelectUI('suiteRatioInput', 'suiteRatioValue', 'suiteRatioMenu');
                 }
             }
             if (item.size) {
                 const sizeInput = document.getElementById('suiteSizeInput');
                 if (sizeInput) {
                     sizeInput.value = item.size;
+                    syncCustomSelectUI('suiteSizeInput', 'suiteSizeValue', 'suiteSizeMenu');
                 }
             }
 
@@ -9065,11 +9067,49 @@ function applyTemplate(index) {
 
 // ==================== 拆分代码段 ====================
 
-// 安全设置 select 元素的辅助函数
+// 同步更新自定义下拉菜单 UI 状态的辅助函数
+function syncCustomSelectUI(hiddenInputId, valueElementId, menuId) {
+    const input = document.getElementById(hiddenInputId);
+    if (!input) return;
+    const value = input.value;
+    
+    // 1. 更新显示的 span 文本
+    const valEl = document.getElementById(valueElementId);
+    if (valEl) valEl.textContent = value;
+    
+    // 2. 更新选中项的 .selected 类名
+    const menu = document.getElementById(menuId);
+    if (menu) {
+        menu.querySelectorAll('.custom-select-item').forEach(item => {
+            if (item.textContent.trim() === value || item.getAttribute('onclick')?.includes("'" + value + "'")) {
+                item.classList.add('selected');
+            } else {
+                item.classList.remove('selected');
+            }
+        });
+    }
+}
+
+// 安全设置 select 元素/隐藏 input 的辅助函数
 function safeSetSelect(selectEl, value, defaultValue) {
     if (!selectEl) return;
-    const validValues = Array.from(selectEl.options).map(o => o.value);
-    selectEl.value = (value && validValues.includes(value)) ? value : defaultValue;
+    
+    // 如果是传统的 <select> 元素
+    if (selectEl.tagName === 'SELECT') {
+        const validValues = Array.from(selectEl.options).map(o => o.value);
+        selectEl.value = (value && validValues.includes(value)) ? value : defaultValue;
+        return;
+    }
+    
+    // 如果是我们的隐藏 input 元素（用作自定义下拉菜单）
+    selectEl.value = value || defaultValue;
+    
+    // 同步更新自定义下拉菜单的 UI 显示和选中态
+    if (selectEl.id === 'suiteRatioInput') {
+        syncCustomSelectUI('suiteRatioInput', 'suiteRatioValue', 'suiteRatioMenu');
+    } else if (selectEl.id === 'suiteSizeInput') {
+        syncCustomSelectUI('suiteSizeInput', 'suiteSizeValue', 'suiteSizeMenu');
+    }
 }
 
 // ==================== 拆分代码段 ====================
@@ -11457,7 +11497,7 @@ function safeSetSelect(selectEl, value, defaultValue) {
                             <div class="model-input-wrapper" onclick="toggleSuiteModelDropdown(event, 'gen')">
                                 <input type="text" id="suiteGenModelInput" class="model-input" value="nano-banana-fast" placeholder="输入或选择模型" spellcheck="false" onclick="toggleSuiteModelDropdown(event, 'gen')" oninput="filterSuiteModelOptions('gen')">
                                 <button class="model-input-btn" onclick="toggleSuiteModelDropdown(event, 'gen')" title="显示所有模型">
-                                    <i class="fas fa-chevron-up"></i>
+                                    <i class="fas fa-chevron-down"></i>
                                 </button>
                             </div>
                             <div class="model-dropdown-menu" id="suiteGenModelMenu">
@@ -11476,7 +11516,7 @@ function safeSetSelect(selectEl, value, defaultValue) {
                             <div class="model-input-wrapper" onclick="toggleSuiteModelDropdown(event, 'vl')">
                                 <input type="text" id="suiteVLModelInput" class="model-input" value="gemini-3.1-pro" placeholder="输入或选择模型" spellcheck="false" onclick="toggleSuiteModelDropdown(event, 'vl')" oninput="filterSuiteModelOptions('vl')">
                                 <button class="model-input-btn" onclick="toggleSuiteModelDropdown(event, 'vl')" title="显示所有模型">
-                                    <i class="fas fa-chevron-up"></i>
+                                    <i class="fas fa-chevron-down"></i>
                                 </button>
                             </div>
                             <div class="model-dropdown-menu" id="suiteVLModelMenu">
@@ -11489,33 +11529,41 @@ function safeSetSelect(selectEl, value, defaultValue) {
                                 <div class="model-dropdown-item" data-mode="media-recognition" data-provider="modelscope" onclick="selectSuiteModel(this, 'vl')">moonshotai/Kimi-K2.5</div>
                             </div>
                         </div>
-                        <div class="ratio-select-wrapper" title="${L.ratio}">
-                            <select id="suiteRatioInput" class="ratio-select">
-                                <option value="1:1" selected>1:1</option>
-                                <option value="2:3">2:3</option>
-                                <option value="3:2">3:2</option>
-                                <option value="4:3">4:3</option>
-                                <option value="3:4">3:4</option>
-                                <option value="16:9">16:9</option>
-                                <option value="9:16">9:16</option>
-                                <option value="1:2">1:2</option>
-                                <option value="2:1">2:1</option>
-                                <option value="4:5">4:5</option>
-                                <option value="5:4">5:4</option>
-                                <option value="21:9">21:9</option>
-                                <option value="9:21">9:21</option>
-                                <option value="1:3">1:3</option>
-                                <option value="3:1">3:1</option>
-                            </select>
-                            <i class="fas fa-chevron-down ratio-icon"></i>
+                        <div class="custom-select-wrapper" title="${L.ratio}">
+                            <div class="custom-select-btn" onclick="toggleCustomSelect('suiteRatioMenu', event)">
+                                <span class="custom-select-value" id="suiteRatioValue">1:1</span>
+                                <i class="fas fa-chevron-down"></i>
+                            </div>
+                            <div class="custom-select-menu" id="suiteRatioMenu" style="bottom: auto; top: calc(100% + 4px);">
+                                <div class="custom-select-item selected" onclick="selectCustomOption('suiteRatioMenu', 'suiteRatioValue', 'suiteRatioInput', this, '1:1')">1:1</div>
+                                <div class="custom-select-item" onclick="selectCustomOption('suiteRatioMenu', 'suiteRatioValue', 'suiteRatioInput', this, '2:3')">2:3</div>
+                                <div class="custom-select-item" onclick="selectCustomOption('suiteRatioMenu', 'suiteRatioValue', 'suiteRatioInput', this, '3:2')">3:2</div>
+                                <div class="custom-select-item" onclick="selectCustomOption('suiteRatioMenu', 'suiteRatioValue', 'suiteRatioInput', this, '4:3')">4:3</div>
+                                <div class="custom-select-item" onclick="selectCustomOption('suiteRatioMenu', 'suiteRatioValue', 'suiteRatioInput', this, '3:4')">3:4</div>
+                                <div class="custom-select-item" onclick="selectCustomOption('suiteRatioMenu', 'suiteRatioValue', 'suiteRatioInput', this, '16:9')">16:9</div>
+                                <div class="custom-select-item" onclick="selectCustomOption('suiteRatioMenu', 'suiteRatioValue', 'suiteRatioInput', this, '9:16')">9:16</div>
+                                <div class="custom-select-item" onclick="selectCustomOption('suiteRatioMenu', 'suiteRatioValue', 'suiteRatioInput', this, '1:2')">1:2</div>
+                                <div class="custom-select-item" onclick="selectCustomOption('suiteRatioMenu', 'suiteRatioValue', 'suiteRatioInput', this, '2:1')">2:1</div>
+                                <div class="custom-select-item" onclick="selectCustomOption('suiteRatioMenu', 'suiteRatioValue', 'suiteRatioInput', this, '4:5')">4:5</div>
+                                <div class="custom-select-item" onclick="selectCustomOption('suiteRatioMenu', 'suiteRatioValue', 'suiteRatioInput', this, '5:4')">5:4</div>
+                                <div class="custom-select-item" onclick="selectCustomOption('suiteRatioMenu', 'suiteRatioValue', 'suiteRatioInput', this, '21:9')">21:9</div>
+                                <div class="custom-select-item" onclick="selectCustomOption('suiteRatioMenu', 'suiteRatioValue', 'suiteRatioInput', this, '9:21')">9:21</div>
+                                <div class="custom-select-item" onclick="selectCustomOption('suiteRatioMenu', 'suiteRatioValue', 'suiteRatioInput', this, '1:3')">1:3</div>
+                                <div class="custom-select-item" onclick="selectCustomOption('suiteRatioMenu', 'suiteRatioValue', 'suiteRatioInput', this, '3:1')">3:1</div>
+                            </div>
+                            <input type="hidden" id="suiteRatioInput" value="1:1">
                         </div>
-                        <div class="ratio-select-wrapper" title="${L.size}">
-                            <select id="suiteSizeInput" class="ratio-select">
-                                <option value="1K" selected>1K</option>
-                                <option value="2K">2K</option>
-                                <option value="4K">4K</option>
-                            </select>
-                            <i class="fas fa-chevron-down ratio-icon"></i>
+                        <div class="custom-select-wrapper" title="${L.size}">
+                            <div class="custom-select-btn" onclick="toggleCustomSelect('suiteSizeMenu', event)">
+                                <span class="custom-select-value" id="suiteSizeValue">1K</span>
+                                <i class="fas fa-chevron-down"></i>
+                            </div>
+                            <div class="custom-select-menu" id="suiteSizeMenu" style="bottom: auto; top: calc(100% + 4px);">
+                                <div class="custom-select-item selected" onclick="selectCustomOption('suiteSizeMenu', 'suiteSizeValue', 'suiteSizeInput', this, '1K')">1K</div>
+                                <div class="custom-select-item" onclick="selectCustomOption('suiteSizeMenu', 'suiteSizeValue', 'suiteSizeInput', this, '2K')">2K</div>
+                                <div class="custom-select-item" onclick="selectCustomOption('suiteSizeMenu', 'suiteSizeValue', 'suiteSizeInput', this, '4K')">4K</div>
+                            </div>
+                            <input type="hidden" id="suiteSizeInput" value="1K">
                         </div>
                         <button class="generate-btn" id="suiteBuildBtn"><i class="fas fa-layer-group"></i> ${L.build}</button>
                         <button class="generate-btn" id="suiteNewTaskBtn" style="background:linear-gradient(135deg,#f87171,#e05252);"><i class="fas fa-plus"></i> 新建任务</button>
@@ -11591,7 +11639,7 @@ function safeSetSelect(selectEl, value, defaultValue) {
                                     <div class="custom-select-wrapper">
                                         <div class="custom-select-btn" onclick="toggleCustomSelect('chatModelMenu', event)">
                                             <span class="custom-select-value" id="chatModelValue">Qwen/Qwen3.5-397B-A17B</span>
-                                            <i class="fas fa-chevron-up"></i>
+                                            <i class="fas fa-chevron-down"></i>
                                         </div>
                                         <div class="custom-select-menu" id="chatModelMenu">
                                             <div class="custom-select-item selected" onclick="selectCustomOption('chatModelMenu', 'chatModelValue', 'chatModelSelect', this, 'Qwen/Qwen3.5-397B-A17B')">Qwen/Qwen3.5-397B-A17B</div>
@@ -11609,7 +11657,7 @@ function safeSetSelect(selectEl, value, defaultValue) {
                                     <div class="custom-select-wrapper">
                                         <div class="custom-select-btn" onclick="toggleCustomSelect('chatImageModelMenu', event)">
                                             <span class="custom-select-value" id="chatImageModelValue">GPT Image-2</span>
-                                            <i class="fas fa-chevron-up"></i>
+                                            <i class="fas fa-chevron-down"></i>
                                         </div>
                                         <div class="custom-select-menu" id="chatImageModelMenu">
                                             <div class="custom-select-item selected" onclick="selectCustomOption('chatImageModelMenu', 'chatImageModelValue', 'chatImageModelSelect', this, 'GPT Image-2')">GPT Image-2</div>
@@ -11628,7 +11676,7 @@ function safeSetSelect(selectEl, value, defaultValue) {
                                     <div class="custom-select-wrapper chat-auto-width">
                                         <div class="custom-select-btn" onclick="toggleCustomSelect('chatAspectRatioMenu', event)">
                                             <span class="custom-select-value" id="chatAspectRatioValue">自动</span>
-                                            <i class="fas fa-chevron-up"></i>
+                                            <i class="fas fa-chevron-down"></i>
                                         </div>
                                         <div class="custom-select-menu" id="chatAspectRatioMenu">
                                             <div class="custom-select-item selected" onclick="selectCustomOption('chatAspectRatioMenu', 'chatAspectRatioValue', 'chatAspectRatioSelect', this, 'auto')">自动</div>
@@ -11651,7 +11699,7 @@ function safeSetSelect(selectEl, value, defaultValue) {
                                     <div class="custom-select-wrapper">
                                         <div class="custom-select-btn" onclick="toggleCustomSelect('chatImageSizeMenu', event)">
                                             <span class="custom-select-value" id="chatImageSizeValue">1K</span>
-                                            <i class="fas fa-chevron-up"></i>
+                                            <i class="fas fa-chevron-down"></i>
                                         </div>
                                         <div class="custom-select-menu" id="chatImageSizeMenu">
                                             <div class="custom-select-item selected" onclick="selectCustomOption('chatImageSizeMenu', 'chatImageSizeValue', 'chatImageSizeSelect', this, '1K')">1K</div>
