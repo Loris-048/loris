@@ -596,14 +596,19 @@
     
     .ratio-select {
         appearance: none; background: transparent; border: 1px solid var(--border);
-        padding: 6px 24px 6px 10px; border-radius: 6px; font-size: 13px; color: var(--text-sub); cursor: pointer;
+        padding: 6px 24px 6px 10px; border-radius: 6px; font-size: 13px; color: var(--text-main); cursor: pointer;
     }
     
-    .ratio-select:hover { border-color: var(--primary); color: var(--primary); }
+    .ratio-select:hover { border-color: var(--primary); }
+    
+    .ratio-select option {
+        background-color: var(--bg-card);
+        color: var(--text-main);
+    }
     
     .ratio-icon {
         position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
-        font-size: 10px; color: var(--text-sub); pointer-events: none;
+        font-size: 10px; color: var(--text-main); pointer-events: none;
     }
 
     /* 自定义下拉菜单（比例/模式/尺寸） */
@@ -697,13 +702,12 @@
         padding: 6px 24px 6px 10px;
         border-radius: 6px;
         font-size: 13px;
-        color: var(--text-sub);
+        color: var(--text-main);
         cursor: text;
         min-width: 200px;
     }
     input[list].ratio-select:focus {
         border-color: var(--primary);
-        color: var(--primary);
     }
 
     /* === 历史记录侧边栏 === */
