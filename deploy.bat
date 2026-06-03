@@ -15,7 +15,6 @@ if %errorlevel% neq 0 (
     pause
     exit /b %errorlevel%
 )
-cd /d "%~dp0.."
 echo.
 
 :: 2. Check Git Remote Origin

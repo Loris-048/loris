@@ -69,14 +69,14 @@ try {
     const distPath = path.join(distDir, 'index_bundled.html');
     fs.writeFileSync(distPath, html, 'utf8');
     
-    // 全自动复制并重命名覆盖根目录下的 index.html (专门用于 GitHub Pages 部署)
-    const rootIndexPath = path.join(__dirname, '..', 'index.html');
+    // 全自动复制并重命名覆盖当前目录下的 index.html (作为 Loirs 仓库根目录的 GitHub Pages 入口)
+    const rootIndexPath = path.join(__dirname, 'index.html');
     fs.writeFileSync(rootIndexPath, html, 'utf8');
     
     console.log('====================================================');
     console.log('🎉 单文件打包圆满成功！');
     console.log(`📂 已导出至: dist/index_bundled.html`);
-    console.log(`🔄 已同步覆盖至根目录: ../index.html (GitHub Pages 入口)`);
+    console.log(`🔄 已同步覆盖当前目录: index.html (GitHub Pages 入口)`);
     console.log(`📈 原拆分文件总体积: ~${Math.round((css.length + js.length + html.length) / 1024)} KB`);
     console.log(`📉 打包单文件后体积: ~${Math.round(html.length / 1024)} KB`);
     console.log('====================================================');

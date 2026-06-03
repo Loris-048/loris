@@ -10,15 +10,10 @@
 
 # 忽略临时保存的 Flux/ComfyUI JSON 工作流
 *.json
-!Loirs/config.json
+!config.json
 
 # 🔑 极度关键：防止将本地带有您个人 Token 的密钥文件提交到 Git 记录中
-Loirs/config.json
+config.json
 
-# 忽略编译打包产生的输出目录（随时可以用 node build.js 重新生成）
-Loirs/dist/
-
-# 🔒 隐私与备份保护：忽略根目录下除了生产部署 index.html 以外的所有临时 HTML 和 JS 文件
-/*.html
-!/index.html
-/*.js
+# 忽略编译打包产生的离线单文件输出目录（我们已经有根目录下的 index.html 上传到 GitHub 了）
+dist/
