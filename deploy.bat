@@ -65,6 +65,7 @@ copy "%~dp0index.html" "%~dp0temp_deploy\index.html" >nul
 :: Navigate into the shadow folder and do isolated push
 cd /d "%~dp0temp_deploy"
 git init
+git remote add origin %repo_url%
 git config user.name "%git_name%"
 git config user.email "%git_email%"
 git add index.html
