@@ -11458,12 +11458,14 @@ function safeSetSelect(selectEl, value, defaultValue) {
                 : L.noRef;
 
             card.innerHTML = `
-                <div class="suite-card-head" style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;">
-                    <span class="suite-chip">#${i}</span>
-                    <div class="suite-tab-btns" style="display:flex;gap:6px;">
-                        <button class="suite-gen-single-btn" onclick="generateSingleSlotImage(${i})" title="使用该关键词生成图片" style="padding:4px 8px;border:1px solid #10b981;border-radius:6px;background:#10b981;color:#fff;font-size:11px;cursor:pointer;">
+                <div class="suite-card-head">
+                    <div class="suite-card-head-row1">
+                        <span class="suite-chip">#${i}</span>
+                        <button class="suite-gen-single-btn" onclick="generateSingleSlotImage(${i})" title="使用该关键词生成图片">
                             <i class="fas fa-image"></i> 生图
                         </button>
+                    </div>
+                    <div class="suite-tab-btns">
                         <button class="suite-tab-btn suite-tab-text active" data-type="text" onclick="switchSuiteCardView(this)">关键词</button>
                         <button class="suite-tab-btn suite-tab-image" data-type="image" onclick="switchSuiteCardView(this)">图片</button>
                     </div>

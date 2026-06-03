@@ -2378,7 +2378,38 @@
         .suite-grid {
             grid-template-columns: repeat(auto-fill, minmax(var(--card-min-width, 140px), 1fr)) !important;
             gap: 10px !important;
-            max-height: calc(100vh - 160px);
+            max-height: none !important; /* 彻底去除高度限制，交由父级统一垂直滚动 */
+            overflow-y: visible !important;
+        }
+        
+        /* 手机端套图卡片头部双排自适应布局，消除溢出与横向滚动条 */
+        .suite-card-head {
+            display: flex !important;
+            flex-direction: column !important;
+            align-items: stretch !important;
+            gap: 6px !important;
+            padding: 6px 8px !important;
+        }
+        .suite-card-head-row1 {
+            display: flex !important;
+            justify-content: space-between !important;
+            align-items: center !important;
+            width: 100% !important;
+        }
+        .suite-tab-btns {
+            display: flex !important;
+            width: 100% !important;
+            gap: 4px !important;
+        }
+        .suite-tab-btns .suite-tab-btn {
+            flex: 1 !important;
+            text-align: center !important;
+            padding: 4px 2px !important;
+            font-size: 10px !important;
+        }
+        .suite-gen-single-btn {
+            padding: 3px 6px !important;
+            font-size: 10px !important;
         }
         /* 去掉min-height，让aspect-ratio生效 */
         .suite-card-content {
@@ -2686,3 +2717,37 @@
             display: block;
         }
     }
+
+/* === 套图模式卡片头部大一统样式 (Desktop) === */
+.suite-card-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+}
+.suite-card-head-row1 {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.suite-tab-btns {
+    display: flex;
+    gap: 6px;
+}
+.suite-gen-single-btn {
+    padding: 4px 8px;
+    border: 1px solid #10b981;
+    border-radius: 6px;
+    background: #10b981;
+    color: #fff;
+    font-size: 11px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    transition: background 0.2s, border-color 0.2s;
+}
+.suite-gen-single-btn:hover {
+    background: #059669;
+    border-color: #059669;
+}
