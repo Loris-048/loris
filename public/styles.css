@@ -1952,6 +1952,7 @@
             flex-direction: column;
             gap: 8px;
             padding: 10px 12px;
+            z-index: 11000 !important; /* 提升导航栏移动端层级，突破 Stacking Context 限制，彻底解决设置面板被遮挡问题 */
         }
         .brand {
             justify-content: center;
