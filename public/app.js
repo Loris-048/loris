@@ -3826,6 +3826,7 @@ function initChatMode() {
         const shouldOpen = open !== undefined ? open : !isOpen;
         chatSidebar.classList.toggle('chat-sidebar-open', shouldOpen);
         chatSidebarOverlay.classList.toggle('active', shouldOpen);
+        document.body.classList.toggle('chat-sidebar-opened', shouldOpen);
     }
     if (chatMenuBtn) chatMenuBtn.addEventListener('click', () => toggleChatSidebar());
     if (chatSidebarOverlay) chatSidebarOverlay.addEventListener('click', () => toggleChatSidebar(false));

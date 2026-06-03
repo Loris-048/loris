@@ -2442,6 +2442,10 @@
             position: relative;
             z-index: 10002 !important;
         }
+        /* 当移动端对话侧边栏打开时，将父容器 #enhChatPage 的层级拉高至 12000，彻底超越导航栏的 11000 */
+        body.chat-sidebar-opened #enhChatPage {
+            z-index: 12000 !important;
+        }
         .chat-sidebar {
             position: fixed !important;
             top: 0;
