@@ -19,14 +19,23 @@ echo.
 
 :: 2. Get GitHub Remote URL (From the main Git repository)
 echo [2/3] Checking Git remote configuration...
-set "repo_url="
-for /f "tokens=*" %%i in ('git config --get remote.origin.url 2^>nul') do set "repo_url=%%i"
 
-:: Get Git identity from parent repo to avoid "Author identity unknown" in shadow repo
+:: Read remote URL securely without subshells
+git config --get remote.origin.url > "%~dp0temp_url.txt" 2>nul
+set "repo_url="
+set /p repo_url=<"%~dp0temp_url.txt"
+del "%~dp0temp_url.txt" >nul 2>&1
+
+:: Read Git identity securely without subshells
+git config user.name > "%~dp0temp_name.txt" 2>nul
 set "git_name="
-for /f "tokens=*" %%i in ('git config user.name 2^>nul') do set "git_name=%%i"
+set /p git_name=<"%~dp0temp_name.txt"
+del "%~dp0temp_name.txt" >nul 2>&1
+
+git config user.email > "%~dp0temp_email.txt" 2>nul
 set "git_email="
-for /f "tokens=*" %%i in ('git config user.email 2^>nul') do set "git_email=%%i"
+set /p git_email=<"%~dp0temp_email.txt"
+del "%~dp0temp_email.txt" >nul 2>&1
 
 if "%git_name%"=="" set "git_name=Loris Deployer"
 if "%git_email%"=="" set "git_email=deployer@loris.local"
