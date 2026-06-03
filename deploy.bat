@@ -56,13 +56,14 @@ copy "%~dp0index.html" "%~dp0temp_deploy\index.html" >nul
 :: Navigate into the shadow folder and do isolated push
 cd /d "%~dp0temp_deploy"
 git init >nul 2>&1
+git checkout -b main >nul 2>&1
 git remote add origin %repo_url% >nul 2>&1
 git add index.html >nul 2>&1
 git commit -m "Auto-deploy production: compiled mobile collapses, alignment fixes, and visual unity" >nul 2>&1
 
 echo.
 echo Pushing changes securely to GitHub Pages branch (main)...
-git push -f origin master:main
+git push -f origin main
 if %errorlevel% neq 0 (
     echo.
     echo [ERROR] Push failed! Please check your network or GitHub permissions.
