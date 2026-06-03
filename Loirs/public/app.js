@@ -11713,10 +11713,10 @@ function safeSetSelect(selectEl, value, defaultValue) {
                     <div class="chat-input-area">
                         <div class="chat-input-box" id="chatInputBox">
                             <!-- 折叠按钮和折叠提示，仅在手机端启用 -->
-                            <button class="chat-collapse-toggle" id="chatCollapseToggle" onclick="toggleChatCollapse(event)" title="收起/展开控制区">
+                            <button class="chat-collapse-toggle" id="chatCollapseToggle" title="收起/展开控制区">
                                 <i class="fas fa-chevron-down"></i>
                             </button>
-                            <div class="chat-collapsed-tip" id="chatCollapsedTip" style="display: none;" onclick="toggleChatCollapse(event)">
+                            <div class="chat-collapsed-tip" id="chatCollapsedTip" style="display: none;">
                                 <i class="fas fa-comment-dots"></i> 点击展开对话控制台...
                             </div>
                             <div class="chat-input-tools">

@@ -2504,9 +2504,22 @@
             order: 1;
         }
         .chat-input-tools .chat-model-select[data-kind="chat-model"] {
-            flex: 1;
-            order: 1;
-            min-width: 0;
+            flex: 1 !important;
+            order: 1 !important;
+            min-width: 0 !important;
+            display: flex !important;
+            align-items: center !important;
+            gap: 6px !important;
+        }
+        .chat-input-tools .chat-model-select[data-kind="chat-model"] .custom-select-wrapper {
+            flex: 1 !important;
+            min-width: 0 !important;
+            width: auto !important;
+        }
+        .chat-input-tools .chat-model-select[data-kind="chat-model"] .custom-select-btn {
+            width: 100% !important;
+            min-width: 0 !important;
+            box-sizing: border-box !important;
         }
         .chat-input-tools .chat-model-select[data-kind="chat-model"] .custom-select-value {
             overflow: hidden;
