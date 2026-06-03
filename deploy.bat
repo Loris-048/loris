@@ -22,6 +22,15 @@ echo [2/3] Checking Git remote configuration...
 set "repo_url="
 for /f "tokens=*" %%i in ('git config --get remote.origin.url 2^>nul') do set "repo_url=%%i"
 
+:: Get Git identity from parent repo to avoid "Author identity unknown" in shadow repo
+set "git_name="
+for /f "tokens=*" %%i in ('git config user.name 2^>nul') do set "git_name=%%i"
+set "git_email="
+for /f "tokens=*" %%i in ('git config user.email 2^>nul') do set "git_email=%%i"
+
+if "%git_name%"=="" set "git_name=Loris Deployer"
+if "%git_email%"=="" set "git_email=deployer@loris.local"
+
 if "%repo_url%"=="" (
     echo [NOTICE] No GitHub repository linked to this project yet!
     echo Please enter your GitHub Repository URL.
@@ -55,11 +64,12 @@ copy "%~dp0index.html" "%~dp0temp_deploy\index.html" >nul
 
 :: Navigate into the shadow folder and do isolated push
 cd /d "%~dp0temp_deploy"
-git init >nul 2>&1
-git checkout -b main >nul 2>&1
-git remote add origin %repo_url% >nul 2>&1
-git add index.html >nul 2>&1
-git commit -m "Auto-deploy production: compiled mobile collapses, alignment fixes, and visual unity" >nul 2>&1
+git init
+git config user.name "%git_name%"
+git config user.email "%git_email%"
+git add index.html
+git commit -m "Auto-deploy production: compiled mobile collapses, alignment fixes, and visual unity"
+git branch -M main
 
 echo.
 echo Pushing changes securely to GitHub Pages branch (main)...
