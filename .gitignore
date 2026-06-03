@@ -17,3 +17,8 @@ Loirs/config.json
 
 # 忽略编译打包产生的输出目录（随时可以用 node build.js 重新生成）
 Loirs/dist/
+
+# 🔒 隐私与备份保护：忽略根目录下除了生产部署 index.html 以外的所有临时 HTML 和 JS 文件
+/*.html
+!/index.html
+/*.js
