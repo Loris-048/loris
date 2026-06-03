@@ -7,7 +7,7 @@ echo.
 
 :: 1. Run build script
 echo [1/3] Running modular code packaging...
-cd /d "%~dp0Loirs"
+cd /d "%~dp0"
 node build.js
 if %errorlevel% neq 0 (
     echo.
@@ -15,7 +15,7 @@ if %errorlevel% neq 0 (
     pause
     exit /b %errorlevel%
 )
-cd /d "%~dp0"
+cd /d "%~dp0.."
 echo.
 
 :: 2. Check Git Remote Origin
