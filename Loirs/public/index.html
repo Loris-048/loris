@@ -116,6 +116,13 @@
     </div>
     
     <div class="composer-wrapper" id="dropZone">
+        <!-- 折叠按钮和折叠提示，仅在手机端启用 -->
+        <button class="composer-fold-btn" id="composerFoldBtn" onclick="toggleComposerFold(event)" title="收起/展开控制台">
+            <i class="fas fa-chevron-down"></i>
+        </button>
+        <div class="composer-collapsed-tip" id="composerCollapsedTip" style="display: none;" onclick="toggleComposerFold(event)">
+            <i class="fas fa-keyboard"></i> 点击展开输入控制台...
+        </div>
         <div class="preview-bar" id="previewBar"></div>
         <div class="input-row">
             <textarea id="prompt" rows="2" placeholder="在此输入提示词，或粘贴/拖入图片..."></textarea>

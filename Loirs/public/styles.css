@@ -475,8 +475,21 @@
         border-radius: var(--radius-lg);
         box-shadow: var(--shadow-lg);
         border: 1px solid var(--border);
-        transition: all 0.3s ease;
+        transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.3s ease, box-shadow 0.3s ease, background-color 0.3s ease;
         z-index: 20;
+        max-height: 800px;
+    }
+    
+    /* 底部输入控制台折叠相关样式 */
+    .composer-fold-btn {
+        display: none; /* 默认电脑端隐藏 */
+    }
+    .composer-collapsed-tip {
+        display: none; /* 默认隐藏 */
+    }
+    @keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
     }
 
     .composer-wrapper:focus-within {
@@ -1967,6 +1980,63 @@
         /* 输入区域 */
         .composer-wrapper {
             border-radius: 12px;
+        }
+        .composer-wrapper.collapsed {
+            max-height: 40px !important;
+            overflow: hidden !important;
+            background-color: var(--bg-hover) !important;
+            border-color: var(--border) !important;
+            box-shadow: var(--shadow-sm) !important;
+            cursor: pointer;
+        }
+        .composer-wrapper.collapsed .preview-bar,
+        .composer-wrapper.collapsed .input-row,
+        .composer-wrapper.collapsed .toolbar {
+            opacity: 0 !important;
+            pointer-events: none !important;
+            visibility: hidden !important;
+        }
+        .composer-collapsed-tip {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            font-size: 13px;
+            color: var(--text-sub);
+            font-weight: 500;
+            user-select: none;
+            cursor: pointer;
+            animation: fadeIn 0.2s ease-in-out;
+        }
+        .composer-fold-btn {
+            display: flex !important;
+            align-items: center;
+            justify-content: center;
+            position: absolute;
+            top: -16px;
+            right: 20px;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            color: var(--text-main);
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+            z-index: 30;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .composer-fold-btn:hover {
+            border-color: var(--primary);
+            color: var(--primary);
+            transform: scale(1.05);
+        }
+        .composer-fold-btn i {
+            font-size: 12px;
+            transition: transform 0.3s ease;
         }
         .input-row {
             padding: 10px;

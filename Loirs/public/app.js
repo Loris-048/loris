@@ -1114,6 +1114,15 @@ async function forceDownload(e, url, fileName) {
 function setupEventListeners() {
     const promptInput = document.getElementById('prompt');
     const dropZone = document.getElementById('dropZone');
+    
+    // 点击折叠态的输入区域时，自动展开
+    dropZone.addEventListener('click', (e) => {
+        if (dropZone.classList.contains('collapsed')) {
+            e.preventDefault();
+            e.stopPropagation();
+            toggleComposerFold(e);
+        }
+    });
 
     promptInput.addEventListener('paste', (e) => {
         const items = (e.clipboardData || e.originalEvent.clipboardData).items;
@@ -8432,6 +8441,31 @@ function parseTextFromResponse(data) {
 }
 
 // ==================== 拆分代码段 ====================
+
+// ==================== 输入控制台手机端收缩折叠功能 ====================
+function toggleComposerFold(event) {
+    if (event) event.stopPropagation();
+    const composer = document.getElementById('dropZone');
+    if (!composer) return;
+    
+    const isCollapsed = composer.classList.toggle('collapsed');
+    
+    // 更新折叠按钮图标
+    const icon = document.querySelector('#composerFoldBtn i');
+    if (icon) {
+        if (isCollapsed) {
+            icon.className = 'fas fa-chevron-up';
+        } else {
+            icon.className = 'fas fa-chevron-down';
+        }
+    }
+    
+    // 自动更新提示文本的可见性
+    const tip = document.getElementById('composerCollapsedTip');
+    if (tip) {
+        tip.style.display = isCollapsed ? 'block' : 'none';
+    }
+}
 
 // ==================== 自定义下拉菜单功能（比例/模式/尺寸） ====================
 function toggleCustomSelect(menuId, event) {
