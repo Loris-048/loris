@@ -11521,7 +11521,10 @@ function safeSetSelect(selectEl, value, defaultValue) {
         suitePage.innerHTML = `
             <div class="suite-shell">
                 <div class="suite-composer" id="suiteDropZone">
-                    <button class="suite-collapse-toggle" id="suiteCollapseToggle" title="收起/展开控制区"><i class="fas fa-chevron-up"></i></button>
+                    <button class="suite-collapse-toggle" id="suiteCollapseToggle" title="收起/展开控制区"><i class="fas fa-chevron-down"></i></button>
+                    <div class="composer-collapsed-tip" id="suiteCollapsedTip" style="display: none;">
+                        <i class="fas fa-keyboard"></i> 点击展开输入控制台...
+                    </div>
                     <div class="suite-row">
                         <input type="file" id="suiteFileInput" accept="image/*" multiple style="display:none;">
                         <button class="tool-btn" id="suiteUploadBtn"><i class="fas fa-paperclip"></i> ${L.upload}</button>
@@ -11787,9 +11790,29 @@ function safeSetSelect(selectEl, value, defaultValue) {
         document.getElementById('suiteGenImagesBtn').addEventListener('click', generateSuiteImages);
         document.getElementById('suiteNewTaskBtn').addEventListener('click', suiteNewTask);
         document.getElementById('suiteArchiveCurrentBtn').addEventListener('click', archiveCurrentSuiteFromPage);
-        document.getElementById('suiteCollapseToggle').addEventListener('click', () => {
+        const toggleSuiteCollapse = (e) => {
+            if (e) e.stopPropagation();
             const composer = document.getElementById('suiteDropZone');
-            if (composer) composer.classList.toggle('suite-collapsed');
+            if (!composer) return;
+            const isCollapsed = composer.classList.toggle('suite-collapsed');
+            
+            // 更新提示可见性
+            const tip = document.getElementById('suiteCollapsedTip');
+            if (tip) {
+                tip.style.display = isCollapsed ? 'flex' : 'none';
+            }
+        };
+
+        document.getElementById('suiteCollapseToggle').addEventListener('click', toggleSuiteCollapse);
+        
+        // 点击折叠态的套图输入区域时，自动展开
+        document.getElementById('suiteDropZone').addEventListener('click', (e) => {
+            const composer = document.getElementById('suiteDropZone');
+            if (composer && composer.classList.contains('suite-collapsed')) {
+                e.preventDefault();
+                e.stopPropagation();
+                toggleSuiteCollapse(e);
+            }
         });
         // 移动端：点击外部关闭模型下拉弹出框
         document.addEventListener('click', (e) => {

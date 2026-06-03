@@ -2284,40 +2284,54 @@
         /* 隐藏手机端无用按钮 */
         #suiteArchiveCurrentBtn, #suiteBackgroundBadge { display: none !important; }
 
-        /* 收缩按钮 - 浮在composer上方 */
+        /* 整体控制台调高，贴近模式切换栏底线 */
+        .suite-shell {
+            padding: 4px 10px 10px !important;
+            gap: 8px !important;
+        }
+
+        /* 手机端套图输入区域支持 max-height 平滑动画 */
+        .suite-composer {
+            transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.3s ease, box-shadow 0.3s ease, background-color 0.3s ease;
+            max-height: 800px;
+        }
+
+        /* 收缩按钮 - 升级为正圆形，贴近卡片上边缘（与常规模式完全对齐） */
         .suite-collapse-toggle {
             display: flex !important;
             position: absolute;
-            top: -32px;
-            right: 8px;
-            width: 28px;
-            height: 28px;
+            top: -16px;
+            right: 20px;
+            width: 32px;
+            height: 32px;
+            border-radius: 50% !important;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            color: var(--text-main);
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+            z-index: 30;
+            cursor: pointer;
             align-items: center;
             justify-content: center;
-            border: 1px solid var(--border);
-            border-radius: 6px;
-            background: var(--bg-card);
-            color: var(--text-sub);
-            cursor: pointer;
             font-size: 12px;
-            z-index: 10;
-            transition: transform .2s;
+            transition: all 0.2s ease;
         }
         .suite-collapse-toggle:hover {
-            background: var(--bg-main);
+            border-color: var(--primary);
+            color: var(--primary);
+            transform: scale(1.05);
         }
-        /* 收缩状态 */
-        .suite-composer.suite-collapsed .suite-row > *:not(.suite-collapse-toggle):not(#suiteUploadBtn):not(.suite-count-wrap):not(#suiteBuildBtn) {
-            display: none;
+        
+        /* 收缩状态 - 100% 隐藏卡片、数量、卡槽创建等所有多余内容，只留 40px 高度 */
+        .suite-composer.suite-collapsed {
+            max-height: 40px !important;
+            overflow: hidden !important;
+            background-color: var(--bg-hover) !important;
+            border-color: var(--border) !important;
+            box-shadow: var(--shadow-sm) !important;
+            cursor: pointer;
         }
-        .suite-composer.suite-collapsed .suite-row {
-            flex-wrap: nowrap;
-        }
-        .suite-composer.suite-collapsed .suite-row > #suiteUploadBtn,
-        .suite-composer.suite-collapsed .suite-row > .suite-count-wrap,
-        .suite-composer.suite-collapsed .suite-row > #suiteBuildBtn {
-            flex: 1;
-        }
+        .suite-composer.suite-collapsed .suite-row,
         .suite-composer.suite-collapsed .suite-status-bar,
         .suite-composer.suite-collapsed .suite-copy,
         .suite-composer.suite-collapsed #suiteRawResponse,
@@ -2325,10 +2339,10 @@
         .suite-composer.suite-collapsed #suiteHint {
             display: none !important;
         }
-        .suite-collapse-toggle .fa-chevron-up {
+        .suite-collapse-toggle .fa-chevron-down {
             transition: transform .2s;
         }
-        .suite-composer.suite-collapsed .suite-collapse-toggle .fa-chevron-up {
+        .suite-composer.suite-collapsed .suite-collapse-toggle .fa-chevron-down {
             transform: rotate(180deg);
         }
 
