@@ -3784,6 +3784,22 @@ function initChatMode() {
     setupChatMessagesDelegation();
     setupChatPreviewDelegation();
     
+    // 对话模式手机端折叠事件绑定
+    const chatInputBox = document.getElementById('chatInputBox');
+    const chatCollapseToggle = document.getElementById('chatCollapseToggle');
+    if (chatCollapseToggle) {
+        chatCollapseToggle.addEventListener('click', toggleChatCollapse);
+    }
+    if (chatInputBox) {
+        chatInputBox.addEventListener('click', (e) => {
+            if (chatInputBox.classList.contains('chat-collapsed')) {
+                e.preventDefault();
+                e.stopPropagation();
+                toggleChatCollapse(e);
+            }
+        });
+    }
+
     // 新对话按钮
     const newBtn = document.getElementById('chatNewBtn');
     if (newBtn) newBtn.addEventListener('click', createNewChat);
@@ -8442,6 +8458,31 @@ function parseTextFromResponse(data) {
 
 // ==================== 拆分代码段 ====================
 
+// ==================== 对话控制台手机端收缩折叠功能 ====================
+function toggleChatCollapse(event) {
+    if (event) event.stopPropagation();
+    const composer = document.getElementById('chatInputBox');
+    if (!composer) return;
+    
+    const isCollapsed = composer.classList.toggle('chat-collapsed');
+    
+    // 更新折叠按钮图标
+    const icon = document.querySelector('#chatCollapseToggle i');
+    if (icon) {
+        if (isCollapsed) {
+            icon.className = 'fas fa-chevron-up';
+        } else {
+            icon.className = 'fas fa-chevron-down';
+        }
+    }
+    
+    // 自动更新提示文本的可见性
+    const tip = document.getElementById('chatCollapsedTip');
+    if (tip) {
+        tip.style.display = isCollapsed ? 'flex' : 'none';
+    }
+}
+
 // ==================== 输入控制台手机端收缩折叠功能 ====================
 function toggleComposerFold(event) {
     if (event) event.stopPropagation();
@@ -11670,7 +11711,14 @@ function safeSetSelect(selectEl, value, defaultValue) {
                     </div>
                     <!-- 输入区 -->
                     <div class="chat-input-area">
-                        <div class="chat-input-box">
+                        <div class="chat-input-box" id="chatInputBox">
+                            <!-- 折叠按钮和折叠提示，仅在手机端启用 -->
+                            <button class="chat-collapse-toggle" id="chatCollapseToggle" onclick="toggleChatCollapse(event)" title="收起/展开控制区">
+                                <i class="fas fa-chevron-down"></i>
+                            </button>
+                            <div class="chat-collapsed-tip" id="chatCollapsedTip" style="display: none;" onclick="toggleChatCollapse(event)">
+                                <i class="fas fa-comment-dots"></i> 点击展开对话控制台...
+                            </div>
                             <div class="chat-input-tools">
                                 <button class="chat-tool-btn" id="chatUploadBtn" title="上传图片"><i class="fas fa-paperclip"></i></button>
                                 <div class="chat-model-select chat-quick-select" data-kind="chat-model">

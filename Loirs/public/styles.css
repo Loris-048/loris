@@ -2533,44 +2533,111 @@
             justify-content: space-between;
             box-sizing: border-box;
         }
-        /* 第三行：比例+尺寸+开关(order=3) */
+        /* 第三行：比例+尺寸+开关(order=3) 瘦身排布，让“启用生图”并入同行 */
         .chat-input-tools .chat-model-select[data-kind="chat-ratio"] {
-            flex: 0 0 auto;
+            flex: 0 0 102px !important;
+            max-width: 102px !important;
             order: 3;
+            display: flex;
+            align-items: center;
+            gap: 4px;
         }
         .chat-input-tools .chat-model-select[data-kind="chat-size"] {
-            flex: 0 0 auto;
+            flex: 0 0 64px !important;
+            max-width: 64px !important;
             order: 3;
+            display: flex;
+            align-items: center;
+            gap: 4px;
         }
         .chat-input-tools .chat-toggle-row {
             flex: 0 0 auto;
             order: 3;
             margin-left: auto;
-        }
-        /* 第三行：固定外框宽度（按最长选项“16:9（宽屏横向）”+少量余量） */
-        .chat-input-tools .chat-model-select[data-kind="chat-ratio"] {
-            flex: 0 0 158px !important;
-            max-width: 158px;
-            order: 3;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-        .chat-input-tools .chat-model-select[data-kind="chat-size"] {
-            /* 需要能稳定显示“4K/2K/1K”等内容 + 下拉箭头 */
-            flex: 0 0 96px !important;
-            max-width: 96px;
-            order: 3;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-        .chat-input-tools .chat-toggle-row {
-            /* 开关不固定宽度，右对齐即可（让比例/尺寸按固定宽度优先展示） */
-            flex: 0 0 auto;
             display: flex;
             justify-content: flex-end;
             align-items: center;
+        }
+        /* 微调比例和尺寸的标签字号与边距，让内容显示完整 */
+        .chat-input-tools .chat-model-select[data-kind="chat-ratio"] .chat-model-label,
+        .chat-input-tools .chat-model-select[data-kind="chat-size"] .chat-model-label {
+            display: inline-flex !important;
+            flex-basis: 22px !important;
+            width: 22px !important;
+            font-size: 11px !important;
+        }
+        .chat-toggle-label {
+            gap: 4px !important;
+            font-size: 11px !important;
+        }
+
+        /* 移动端对话控制台折叠相关样式 */
+        .chat-input-box {
+            transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.3s ease, box-shadow 0.3s ease, background-color 0.3s ease;
+            max-height: 800px;
+            position: relative;
+        }
+        .chat-input-box.chat-collapsed {
+            max-height: 40px !important;
+            overflow: hidden !important;
+            background-color: var(--bg-hover) !important;
+            border-color: var(--border) !important;
+            box-shadow: var(--shadow-sm) !important;
+            cursor: pointer;
+        }
+        .chat-input-box.chat-collapsed .chat-input-tools,
+        .chat-input-box.chat-collapsed .chat-input-row {
+            opacity: 0 !important;
+            pointer-events: none !important;
+            visibility: hidden !important;
+        }
+        .chat-collapsed-tip {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            font-size: 13px;
+            color: var(--text-sub);
+            font-weight: 500;
+            user-select: none;
+            cursor: pointer;
+            animation: fadeIn 0.2s ease-in-out;
+        }
+        .chat-collapse-toggle {
+            display: flex !important;
+            align-items: center;
+            justify-content: center;
+            position: absolute;
+            top: -16px;
+            right: 20px;
+            width: 32px;
+            height: 32px;
+            border-radius: 50% !important;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            color: var(--text-main);
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+            z-index: 30;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .chat-collapse-toggle:hover {
+            border-color: var(--primary);
+            color: var(--primary);
+            transform: scale(1.05);
+        }
+        .chat-collapse-toggle i {
+            font-size: 12px;
+            transition: transform 0.3s ease;
+        }
+        .chat-collapse-toggle .fa-chevron-down {
+            transition: transform 0.2s;
+        }
+        .chat-input-box.chat-collapsed .chat-collapse-toggle .fa-chevron-down {
+            transform: rotate(180deg);
         }
         /* 第三行：保留“比例/尺寸”文字，但固定label宽度，避免挤压/重叠 */
         .chat-input-tools .chat-model-select[data-kind="chat-ratio"] .chat-model-label,
@@ -2750,4 +2817,13 @@
 .suite-gen-single-btn:hover {
     background: #059669;
     border-color: #059669;
+}
+
+
+/* === 对话模式控制台折叠相关样式 (Desktop) === */
+.chat-collapse-toggle {
+    display: none; /* 默认电脑端隐藏 */
+}
+.chat-collapsed-tip {
+    display: none; /* 默认隐藏 */
 }
