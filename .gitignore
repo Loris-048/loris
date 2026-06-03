@@ -1,19 +1,7 @@
-# 忽略体积庞大的安装包
-*.exe
-*.msi
+# 🔒 极致隐私保护：忽略 Loirs 文件夹下的所有私有模块源码、启动脚本和后端服务
+# 确保您的核心知识产权 100% 留在您本人的本地电脑上，GitHub 线上只公开打包后的 index.html
+*
 
-# 忽略图片和生图临时缓存
-*.png
-*.jpg
-*.jpeg
-*.gif
-
-# 忽略临时保存的 Flux/ComfyUI JSON 工作流
-*.json
-!config.json
-
-# 🔑 极度关键：防止将本地带有您个人 Token 的密钥文件提交到 Git 记录中
-config.json
-
-# 忽略编译打包产生的离线单文件输出目录（我们已经有根目录下的 index.html 上传到 GitHub 了）
-dist/
+# 唯独放行部署所用的编译后单网页 index.html 与本过滤规则
+!index.html
+!.gitignore
