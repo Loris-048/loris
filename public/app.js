@@ -1250,6 +1250,9 @@ document.addEventListener('DOMContentLoaded', () => {
     (async () => {
         try {
             await StorageAdapter.init();
+            if (StorageAdapter.isServer()) {
+                loadHistoryToSidebar();
+            }
         } catch (_) {}
         try {
             await initDB();
@@ -6942,8 +6945,17 @@ function clearPageList() {
 }
 
 function toggleHistoryDrawer() {
-    document.getElementById('historyDrawer').classList.toggle('open');
-    document.getElementById('drawerOverlay').classList.toggle('open');
+    const drawer = document.getElementById('historyDrawer');
+    const overlay = document.getElementById('drawerOverlay');
+    const isOpen = drawer.classList.contains('open');
+    
+    drawer.classList.toggle('open');
+    overlay.classList.toggle('open');
+    
+    // 如果是打开抽屉，秒级拉取最新数据，防止时序空档
+    if (!isOpen) {
+        loadHistoryToSidebar();
+    }
 }
 
 // 创建历史记录卡片 DOM（不添加到页面，用于批量创建）
@@ -12317,7 +12329,15 @@ function safeSetSelect(selectEl, value, defaultValue) {
         }
     }
 
-    function readHistory(itemId) {
+    async function readHistory(itemId) {
+        if (StorageAdapter.isServer()) {
+            try {
+                const item = await readHistoryItemById(itemId);
+                return item;
+            } catch (err) {
+                console.error("Server readHistory failed:", err);
+            }
+        }
         return new Promise((resolve, reject) => {
             const historyDb = getHistoryDb();
             const storeName = getStoreName();

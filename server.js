@@ -207,6 +207,47 @@ const server = http.createServer((req, res) => {
                     return;
                 }
                 
+                // 如果是套图模式，批量保存子插槽图片
+                const isSuiteMode = record.mode === 'suite' || record.type === 'suite';
+                const root = getStorageRoot();
+                
+                if (isSuiteMode && Array.isArray(record.images) && record.images.length > 0) {
+                    const destDir = path.join(root, 'output', '套图');
+                    if (!fs.existsSync(destDir)) {
+                        fs.mkdirSync(destDir, { recursive: true });
+                    }
+                    
+                    const timeStr = formatTimestamp(record.timestamp);
+                    let seqNum = getNextFileNumber(destDir);
+                    
+                    record.images.forEach((img) => {
+                        if (img && img.url && typeof img.url === 'string' && img.url.startsWith('data:image/')) {
+                            const base64Data = img.url.replace(/^data:image\/\w+;base64,/, "");
+                            const buffer = Buffer.from(base64Data, 'base64');
+                            
+                            const imgFilename = `${seqNum}_${timeStr}_slot${img.index || 1}.png`;
+                            const imgPath = path.join(destDir, imgFilename);
+                            
+                            fs.writeFileSync(imgPath, buffer);
+                            
+                            img.url = `/output/%E5%A5%97%E5%9B%BE/${imgFilename}`;
+                            if (img.thumbnail && img.thumbnail.startsWith('data:image/')) {
+                                img.thumbnail = img.url;
+                            }
+                            
+                            const nextNum = parseInt(seqNum, 10) + 1;
+                            seqNum = String(nextNum).padStart(4, '0');
+                        }
+                    });
+                    
+                    const firstValidImg = record.images.find(img => img.url && !img.url.startsWith('data:image/'));
+                    if (firstValidImg) {
+                        record.firstImage = firstValidImg.url;
+                        record.thumbnail = firstValidImg.url;
+                        record.url = firstValidImg.url;
+                    }
+                }
+                
                 if (record.imageData && typeof record.imageData === 'string' && record.imageData.startsWith('data:image/')) {
                     // 处理 Base64 数据
                     const base64Data = record.imageData.replace(/^data:image\/\w+;base64,/, "");

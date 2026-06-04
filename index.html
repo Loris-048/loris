@@ -1394,6 +1394,9 @@ document.addEventListener('DOMContentLoaded', () => {
     (async () => {
         try {
             await StorageAdapter.init();
+            if (StorageAdapter.isServer()) {
+                loadHistoryToSidebar();
+            }
         } catch (_) {}
         try {
             await initDB();
@@ -6237,8 +6240,14 @@ function clearPageList() {
     });
 }
 function toggleHistoryDrawer() {
-    document.getElementById('historyDrawer').classList.toggle('open');
-    document.getElementById('drawerOverlay').classList.toggle('open');
+    const drawer = document.getElementById('historyDrawer');
+    const overlay = document.getElementById('drawerOverlay');
+    const isOpen = drawer.classList.contains('open');
+    drawer.classList.toggle('open');
+    overlay.classList.toggle('open');
+    if (!isOpen) {
+        loadHistoryToSidebar();
+    }
 }
 function createHistoryThumbnail(item) {
     const div = document.createElement('div');
@@ -10721,7 +10730,15 @@ function safeSetSelect(selectEl, value, defaultValue) {
             alert(msg);
         }
     }
-    function readHistory(itemId) {
+    async function readHistory(itemId) {
+        if (StorageAdapter.isServer()) {
+            try {
+                const item = await readHistoryItemById(itemId);
+                return item;
+            } catch (err) {
+                console.error("Server readHistory failed:", err);
+            }
+        }
         return new Promise((resolve, reject) => {
             const historyDb = getHistoryDb();
             const storeName = getStoreName();
