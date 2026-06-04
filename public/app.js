@@ -6981,6 +6981,20 @@ function createHistoryThumbnail(item) {
         div.dataset.result = item.result;
     }
     
+    // 自动提取本地磁盘文件名，用于悬浮 title 属性提示
+    let localFilename = '';
+    if (item.url && typeof item.url === 'string') {
+        try {
+            const decodedUrl = decodeURIComponent(item.url);
+            const parts = decodedUrl.split('/');
+            const filenameWithExt = parts[parts.length - 1];
+            if (filenameWithExt) {
+                const lastDot = filenameWithExt.lastIndexOf('.');
+                localFilename = lastDot !== -1 ? filenameWithExt.substring(0, lastDot) : filenameWithExt;
+            }
+        } catch (_) {}
+    }
+    
     let metaInfoHtml = '';
     if (!isRecognition && (item.type === 'image' || item.image)) {
         const ratioText = item.aspectRatio || '';
@@ -7007,7 +7021,7 @@ function createHistoryThumbnail(item) {
     div.innerHTML = `
         <div class="history-thumb-column">
             <div class="history-thumb-frame">
-                <img src="${escapeAttr(getSafeImageSrc(imgSrc, 80, 80))}" class="history-item-img" loading="lazy" onerror="handleImageLoadError(this)">
+                <img src="${escapeAttr(getSafeImageSrc(imgSrc, 80, 80))}" class="history-item-img" loading="lazy" onerror="handleImageLoadError(this)" onclick="event.stopPropagation(); ${isSuite ? `restoreSuiteFromHistory(${itemId})` : `openHistoryModal(${itemId})`}" style="cursor: pointer;" title="${localFilename ? `磁盘文件名: ${localFilename}` : (item.prompt || '暂无物理磁盘文件名')}">
                 ${typeBadge}
                 ${archiveBadge}
             </div>
