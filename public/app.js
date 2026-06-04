@@ -733,6 +733,7 @@ async function storeItem(item, callback) {
             }
             
             const recordToSave = {
+                ...item, // 100% 无损拷贝原始数据对象的所有深层高维元数据字段（如 aspectRatio, targetResolution, actualResolution 等）
                 id: item.id || Date.now(),
                 type: item.type || 'image',
                 prompt: item.prompt || '',
@@ -6996,15 +6997,22 @@ function createHistoryThumbnail(item) {
     }
     
     let metaInfoHtml = '';
-    if (!isRecognition && (item.type === 'image' || item.image)) {
-        const ratioText = item.aspectRatio || '';
-        const targetResText = item.targetResolution 
-            ? `${item.targetResolution.width}×${item.targetResolution.height}` 
-            : '';
+    if (!isRecognition && (item.type === 'image' || item.image || item.url)) {
+        const ratioText = item.aspectRatio || item.ratio || '';
+        
+        let targetResText = '';
+        if (item.targetResolution) {
+            targetResText = `${item.targetResolution.width}×${item.targetResolution.height}`;
+        } else if (item.width && item.height) {
+            targetResText = `${item.width}×${item.height}`;
+        }
+        
         const modelText = item.model || '';
-        const actualResText = item.actualResolution 
-            ? `${item.actualResolution.width}×${item.actualResolution.height}` 
-            : '';
+        
+        let actualResText = '';
+        if (item.actualResolution) {
+            actualResText = `${item.actualResolution.width}×${item.actualResolution.height}`;
+        }
         
         metaInfoHtml = `
             <div class="history-item-meta">
