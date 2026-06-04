@@ -37,13 +37,13 @@ function getStorageRoot() {
     return path.resolve(path.join(__dirname, '..', 'Loirs_Data'));
 }
 
-// 确保本地物理磁盘输出文件夹及 single/suite/chat 三大子目录存在
+// 确保本地物理磁盘输出文件夹及 常规/套图/对话 三大子目录存在
 function ensureStorageDirs() {
     const root = getStorageRoot();
     const output = path.join(root, 'output');
-    const single = path.join(output, 'single');
-    const suite = path.join(output, 'suite');
-    const chat = path.join(output, 'chat');
+    const single = path.join(output, '常规');
+    const suite = path.join(output, '套图');
+    const chat = path.join(output, '对话');
     
     [root, output, single, suite, chat].forEach(dir => {
         if (!fs.existsSync(dir)) {
@@ -214,13 +214,16 @@ const server = http.createServer((req, res) => {
                     
                     const mode = record.mode || 'single';
                     const root = getStorageRoot();
-                    let destDir = path.join(root, 'output', 'single');
+                    let destDir = path.join(root, 'output', '常规');
+                    let modeFolder = '常规';
                     
                     if (mode === 'suite') {
-                        destDir = path.join(root, 'output', 'suite');
+                        destDir = path.join(root, 'output', '套图');
+                        modeFolder = '套图';
                     } else if (mode === 'chat') {
                         const chatFolderName = sanitizeFolderName(record.chatName);
-                        destDir = path.join(root, 'output', 'chat', chatFolderName);
+                        destDir = path.join(root, 'output', '对话', chatFolderName);
+                        modeFolder = '对话';
                     }
                     
                     // 确保目标子目录存在
@@ -240,9 +243,9 @@ const server = http.createServer((req, res) => {
                     let browserUrl = '';
                     if (mode === 'chat') {
                         const chatFolderName = sanitizeFolderName(record.chatName);
-                        browserUrl = `/output/chat/${encodeURIComponent(chatFolderName)}/${imgFilename}`;
+                        browserUrl = `/output/对话/${encodeURIComponent(chatFolderName)}/${imgFilename}`;
                     } else {
-                        browserUrl = `/output/${mode}/${imgFilename}`;
+                        browserUrl = `/output/${encodeURIComponent(modeFolder)}/${imgFilename}`;
                     }
                     
                     // 剔除高内存消耗的 imageData，替换为轻量级 url
@@ -341,9 +344,9 @@ const server = http.createServer((req, res) => {
             // 递归清理物理生图目录下的所有常规/套图/对话文件
             const root = getStorageRoot();
             const subdirs = [
-                path.join(root, 'output', 'single'),
-                path.join(root, 'output', 'suite'),
-                path.join(root, 'output', 'chat')
+                path.join(root, 'output', '常规'),
+                path.join(root, 'output', '套图'),
+                path.join(root, 'output', '对话')
             ];
             
             subdirs.forEach(dir => {
