@@ -746,10 +746,10 @@ async function storeItem(item, callback) {
                 steps: item.steps || 20,
                 scale: item.scale || 7,
                 timestamp: item.timestamp || Date.now(),
-                // 三层归口落盘所需的字段
+                // 三层归口落盘所需的字段：兼容常规生图 item.image 和 AI回传/聊天结果 item.result、item.url
                 mode: activeMode,
                 chatName: chatTitle,
-                imageData: item.url
+                imageData: item.image || item.url || item.result
             };
             
             // 如果是套图模式，同步拷贝套图专属的结构字段
@@ -769,6 +769,8 @@ async function storeItem(item, callback) {
             const data = await res.json();
             if (data.success) {
                 item.url = data.url; // 将前端原有的内存 Base64 替换为物理落盘相对路径 /output/...
+                item.image = '';     // 物理落盘成功后，立即彻底清空前端庞大的 Base64 内存占用，秒级减负！
+                item.result = '';
                 item.id = recordToSave.id;
                 loadHistoryPage(1);
                 if (callback) callback(item.id);
