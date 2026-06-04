@@ -66,6 +66,20 @@
             </div>
         </div>
 
+        <!-- 本地物理磁盘存储路径（仅在 server 模式下显示） -->
+        <div class="suite-archive-settings" id="localStoragePathContainer" style="display: none;">
+            <div class="suite-archive-title">
+                <i class="fas fa-database"></i>
+                <span>本地存储路径 (磁盘)</span>
+            </div>
+            <div style="margin-top: 8px;">
+                <input type="text" id="localStoragePathInput" placeholder="默认：Loirs 同级的 Loirs_Data" style="width: 100%; padding: 8px 12px; border: 1px solid var(--border-color); border-radius: 8px; background: var(--bg-card); color: var(--text-main); font-size: 13px; box-sizing: border-box; outline: none;" onchange="updateStoragePath(this.value)">
+            </div>
+            <div class="suite-archive-help" id="localStoragePathStatus" style="margin-top: 6px; word-break: break-all;">
+                正在探测本地物理存储路径...
+            </div>
+        </div>
+
         <div class="suite-archive-settings">
             <div class="suite-archive-title">
                 <i class="fas fa-folder-open"></i>

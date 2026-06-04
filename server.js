@@ -12,7 +12,8 @@ let config = {
     port: 3000,
     banana_token: "",
     modelscope_token: "",
-    chat_api_base: ""
+    chat_api_base: "",
+    storage_path: "" // 新增：用户自定义落盘物理路径
 };
 
 // 读取或创建配置文件
@@ -26,6 +27,90 @@ if (fs.existsSync(CONFIG_PATH)) {
 } else {
     fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 4), 'utf8');
     console.log('📝 已在本地自动为您生成空配置文件: config.json');
+}
+
+// 动态解析物理落盘的总目录，若为空则默认存放在 Loirs 同级的 Loirs_Data 目录下
+function getStorageRoot() {
+    if (config.storage_path && config.storage_path.trim()) {
+        return path.resolve(config.storage_path.trim());
+    }
+    return path.resolve(path.join(__dirname, '..', 'Loirs_Data'));
+}
+
+// 确保本地物理磁盘输出文件夹及 single/suite/chat 三大子目录存在
+function ensureStorageDirs() {
+    const root = getStorageRoot();
+    const output = path.join(root, 'output');
+    const single = path.join(output, 'single');
+    const suite = path.join(output, 'suite');
+    const chat = path.join(output, 'chat');
+    
+    [root, output, single, suite, chat].forEach(dir => {
+        if (!fs.existsSync(dir)) {
+            fs.mkdirSync(dir, { recursive: true });
+        }
+    });
+}
+
+// 获取历史数据库 history.json 文件的物理路径
+function getHistoryPath() {
+    return path.join(getStorageRoot(), 'history.json');
+}
+
+// 磁盘轻量 JSON 数据库读取
+function getHistory() {
+    ensureStorageDirs();
+    const historyPath = getHistoryPath();
+    if (fs.existsSync(historyPath)) {
+        try {
+            return JSON.parse(fs.readFileSync(historyPath, 'utf8'));
+        } catch (e) {
+            console.error('⚠️ 读取 history.json 失败:', e);
+            return [];
+        }
+    }
+    return [];
+}
+
+// 磁盘轻量 JSON 数据库写入
+function saveHistory(history) {
+    ensureStorageDirs();
+    fs.writeFileSync(getHistoryPath(), JSON.stringify(history, null, 4), 'utf8');
+}
+
+// 深度过滤 Windows/Linux 文件系统禁用字符，让文件夹名字安全无暇
+function sanitizeFolderName(name) {
+    if (!name || !name.trim()) return '未命名对话';
+    // 替换特殊危险字符如 \ / : * ? " < > | 为下划线
+    let sanitized = name.trim().replace(/[\\\/:\*\?"<>\|]/g, '_');
+    if (sanitized.length > 100) {
+        sanitized = sanitized.substring(0, 100).trim();
+    }
+    return sanitized;
+}
+
+// 获取目录下当前的自增文件编号（例如目录下有 5 张 png，下一张自动编为 0006）
+function getNextFileNumber(dirPath) {
+    try {
+        if (!fs.existsSync(dirPath)) return '0001';
+        const files = fs.readdirSync(dirPath).filter(f => f.toLowerCase().endsWith('.png'));
+        const nextNum = files.length + 1;
+        return String(nextNum).padStart(4, '0');
+    } catch (e) {
+        return '0001';
+    }
+}
+
+// 格式化生成时间，格式 YYYYMMDD_HHMMSS
+function formatTimestamp(ts) {
+    const d = ts ? new Date(ts) : new Date();
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    const hh = String(d.getHours()).padStart(2, '0');
+    const min = String(d.getMinutes()).padStart(2, '0');
+    const ss = String(d.getSeconds()).padStart(2, '0');
+    return `${yyyy}${mm}${dd}_${hh}${min}${ss}`;
 }
 
 // 常见静态文件媒体类型
@@ -88,6 +173,203 @@ const server = http.createServer((req, res) => {
 
     const parsedUrl = url.parse(req.url, true);
     const pathname = parsedUrl.pathname;
+
+    // 0.1 API: 嗅探本地服务器运行状态并返回当前物理路径
+    if (pathname === '/api/status' && req.method === 'GET') {
+        res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({
+            status: "ok",
+            mode: "server",
+            storagePath: getStorageRoot()
+        }));
+        return;
+    }
+
+    // 0.2 API: 获取物理磁盘历史数据库记录
+    if (pathname === '/api/history' && req.method === 'GET') {
+        res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify(getHistory()));
+        return;
+    }
+
+    // 0.3 API: 物理存图与智能命名引擎
+    if (pathname === '/api/save-image' && req.method === 'POST') {
+        let body = '';
+        req.on('data', chunk => {
+            body += chunk.toString();
+        });
+        req.on('end', () => {
+            try {
+                const record = JSON.parse(body);
+                if (!record.id) {
+                    res.writeHead(400, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ error: 'Missing id' }));
+                    return;
+                }
+                
+                if (record.imageData) {
+                    // 处理 Base64 数据
+                    const base64Data = record.imageData.replace(/^data:image\/\w+;base64,/, "");
+                    const buffer = Buffer.from(base64Data, 'base64');
+                    
+                    const mode = record.mode || 'single';
+                    const root = getStorageRoot();
+                    let destDir = path.join(root, 'output', 'single');
+                    
+                    if (mode === 'suite') {
+                        destDir = path.join(root, 'output', 'suite');
+                    } else if (mode === 'chat') {
+                        const chatFolderName = sanitizeFolderName(record.chatName);
+                        destDir = path.join(root, 'output', 'chat', chatFolderName);
+                    }
+                    
+                    // 确保目标子目录存在
+                    if (!fs.existsSync(destDir)) {
+                        fs.mkdirSync(destDir, { recursive: true });
+                    }
+                    
+                    // 计算自增编号和时间，生成最终文件名
+                    const seqNum = getNextFileNumber(destDir);
+                    const timeStr = formatTimestamp(record.timestamp);
+                    const imgFilename = `${seqNum}_${timeStr}.png`;
+                    const imgPath = path.join(destDir, imgFilename);
+                    
+                    fs.writeFileSync(imgPath, buffer);
+                    
+                    // 构建前端可访问的相对 URL (URL 必须进行编码以防中文乱码)
+                    let browserUrl = '';
+                    if (mode === 'chat') {
+                        const chatFolderName = sanitizeFolderName(record.chatName);
+                        browserUrl = `/output/chat/${encodeURIComponent(chatFolderName)}/${imgFilename}`;
+                    } else {
+                        browserUrl = `/output/${mode}/${imgFilename}`;
+                    }
+                    
+                    // 剔除高内存消耗的 imageData，替换为轻量级 url
+                    delete record.imageData;
+                    record.url = browserUrl;
+                }
+                
+                // 将记录写入历史数据库 history.json
+                const history = getHistory();
+                const existingIdx = history.findIndex(h => h.id === record.id);
+                if (existingIdx !== -1) {
+                    // 合并现有记录与更新（支持增量更新）
+                    history[existingIdx] = { ...history[existingIdx], ...record };
+                    record.url = history[existingIdx].url; // 保证返回的 url 依然存在
+                } else {
+                    history.unshift(record); // 最新生成的排在最前面
+                }
+                saveHistory(history);
+                
+                res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+                res.end(JSON.stringify({ success: true, url: record.url }));
+            } catch (e) {
+                console.error('❌ 保存本地图片失败:', e);
+                res.writeHead(500, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: e.message }));
+            }
+        });
+        return;
+    }
+
+    // 0.4 API: 动态修改存储路径 (无需重启)
+    if (pathname === '/api/storage-path' && req.method === 'POST') {
+        let body = '';
+        req.on('data', chunk => {
+            body += chunk.toString();
+        });
+        req.on('end', () => {
+            try {
+                const data = JSON.parse(body);
+                let newPath = data.path ? data.path.trim() : '';
+                
+                // 更新内存中的配置
+                config.storage_path = newPath;
+                
+                // 测试在该目录下创建子目录以确保可写
+                ensureStorageDirs();
+                
+                // 永久保存至 config.json
+                fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 4), 'utf8');
+                
+                res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+                res.end(JSON.stringify({
+                    success: true,
+                    storagePath: getStorageRoot()
+                }));
+            } catch (e) {
+                console.error('❌ 更改存储路径失败:', e);
+                res.writeHead(500, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: e.message }));
+            }
+        });
+        return;
+    }
+
+    // 0.5 API: 删除/清空历史记录并智能同步物理删除磁盘图片
+    if (pathname === '/api/history' && req.method === 'DELETE') {
+        const recordId = parsedUrl.query.id;
+        let history = getHistory();
+        
+        if (recordId) {
+            const record = history.find(h => h.id === recordId);
+            if (record) {
+                // 根据 URL 还原本地物理图片地址并将其删除
+                let fileRelPath = record.url;
+                if (fileRelPath && fileRelPath.startsWith('/output/')) {
+                    const relativePath = decodeURIComponent(fileRelPath.substring(8));
+                    const safeRelativePath = path.normalize(relativePath).replace(/^(\.\.[\/\\])+/, '');
+                    const filePath = path.join(getStorageRoot(), 'output', safeRelativePath);
+                    if (fs.existsSync(filePath)) {
+                        try {
+                            fs.unlinkSync(filePath);
+                        } catch (e) {
+                            console.error('⚠️ 删除本地物理图片失败:', filePath, e);
+                        }
+                    }
+                }
+                // 从数据库中剔除
+                history = history.filter(h => h.id !== recordId);
+                saveHistory(history);
+            }
+            res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+            res.end(JSON.stringify({ success: true }));
+        } else {
+            // 全盘清空
+            saveHistory([]);
+            // 递归清理物理生图目录下的所有常规/套图/对话文件
+            const root = getStorageRoot();
+            const subdirs = [
+                path.join(root, 'output', 'single'),
+                path.join(root, 'output', 'suite'),
+                path.join(root, 'output', 'chat')
+            ];
+            
+            subdirs.forEach(dir => {
+                if (fs.existsSync(dir)) {
+                    try {
+                        const items = fs.readdirSync(dir);
+                        items.forEach(item => {
+                            const itemPath = path.join(dir, item);
+                            const stat = fs.statSync(itemPath);
+                            if (stat.isDirectory()) {
+                                // 递归删除对话子文件夹
+                                fs.rmSync(itemPath, { recursive: true, force: true });
+                            } else {
+                                fs.unlinkSync(itemPath);
+                            }
+                        });
+                    } catch (e) {
+                        console.error('⚠️ 清理存储子目录失败:', dir, e);
+                    }
+                }
+            });
+            res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+            res.end(JSON.stringify({ success: true }));
+        }
+        return;
+    }
 
     // 1. API: 获取配置状态（前端用来隐藏/禁用密码框）
     if (pathname === '/api/config' && req.method === 'GET') {
@@ -167,8 +449,17 @@ const server = http.createServer((req, res) => {
         return;
     }
 
-    // 3. 静态资源转发 (index.html, styles.css, app.js, images 等)
+    // 3. 静态资源和本地磁盘物理图片转发
     const safePath = path.normalize(pathname).replace(/^(\.\.[\/\\])+/, '');
+    
+    // 拦截本地磁盘物理图片资源请求，映射回 Loirs_Data/output/...
+    if (pathname.startsWith('/output/')) {
+        const relativePath = decodeURIComponent(pathname.substring(8));
+        const safeRelativePath = path.normalize(relativePath).replace(/^(\.\.[\/\\])+/, '');
+        const filePath = path.join(getStorageRoot(), 'output', safeRelativePath);
+        serveStaticFile(req, res, filePath);
+        return;
+    }
     
     // 如果请求的是首页，并且已经运行了 build.js 进行了混淆打包，则优先返回无注释、已压缩的安全版本
     if (safePath === '/' || safePath === '\\' || safePath === 'index.html') {

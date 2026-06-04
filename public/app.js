@@ -128,6 +128,88 @@ const CHAT_LOCALSTORAGE_KEY = "loris_chat_sessions_v2"; // 同步换key，避免
 let db;
 let initDbPromise = null;
 
+// =====================================================================
+// 🔌 全局存储自适应引擎选择器 (Storage Adapter)
+// =====================================================================
+const StorageAdapter = {
+    mode: 'local', // 'local' (IndexedDB) 或 'server' (Node.js API)
+    storagePath: '', // 本地磁盘路径（仅在 server 模式下有效）
+    
+    async init() {
+        try {
+            // 向本地后端服务发送一次超轻量的状态嗅探请求
+            const res = await fetch('/api/status');
+            if (res.ok) {
+                const data = await res.json();
+                if (data.status === 'ok') {
+                    this.mode = 'server';
+                    this.storagePath = data.storagePath;
+                    debugLog(`🔌 [StorageAdapter]: 成功连接本地服务器落盘引擎! 存储路径: ${this.storagePath}`);
+                    
+                    const container = document.getElementById('localStoragePathContainer');
+                    const input = document.getElementById('localStoragePathInput');
+                    const status = document.getElementById('localStoragePathStatus');
+                    if (container) container.style.display = 'block';
+                    if (input) input.value = this.storagePath;
+                    if (status) status.textContent = `本地物理落盘目录: ${this.storagePath}`;
+                    return;
+                }
+            }
+        } catch (_) {}
+        this.mode = 'local';
+        debugLog("🔌 [StorageAdapter]: 未检测到本地服务器，自适应降级至浏览器 IndexedDB 本地数据库存储。");
+        
+        const container = document.getElementById('localStoragePathContainer');
+        if (container) container.style.display = 'none';
+    },
+    
+    isServer() {
+        return this.mode === 'server';
+    }
+};
+
+// 动态修改本地物理磁盘存储路径
+async function updateStoragePath(newPath) {
+    if (!StorageAdapter.isServer()) return;
+    try {
+        const res = await fetch('/api/storage-path', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ storagePath: newPath })
+        });
+        const data = await res.json();
+        if (data.success) {
+            StorageAdapter.storagePath = data.storagePath;
+            const statusEl = document.getElementById('localStoragePathStatus');
+            if (statusEl) {
+                statusEl.textContent = `路径更新成功！本地物理落盘目录: ${data.storagePath}`;
+                statusEl.style.color = '#10b981';
+            }
+            showToast('存储路径更新成功');
+        } else {
+            const statusEl = document.getElementById('localStoragePathStatus');
+            if (statusEl) {
+                statusEl.textContent = `路径更新失败: ${data.message}`;
+                statusEl.style.color = '#ef4444';
+            }
+        }
+    } catch (e) {
+        console.error('❌ 更新本地物理存储路径失败:', e);
+        showToast('更新物理路径请求失败');
+    }
+}
+
+// 获取当前活跃的功能 Tab 模式 (常规: single / 套图: suite / 对话: chat)
+function getActivePageMode() {
+    if (document.getElementById('pageTabChat')?.classList.contains('active')) {
+        return 'chat';
+    }
+    if (document.getElementById('pageTabSuite')?.classList.contains('active')) {
+        return 'suite';
+    }
+    return 'single';
+}
+
 // 首次加载时清理旧的损坏数据库（一次性）
 try { indexedDB.deleteDatabase("BananaProDB"); } catch (_) {}
 
@@ -316,7 +398,18 @@ function stripHeavyFields(item) {
 }
 
 // 从 IndexedDB 按 id 异步加载单条历史记录的完整数据（含原图）
-function getHistoryItemById(id) {
+async function getHistoryItemById(id) {
+    if (StorageAdapter.isServer()) {
+        try {
+            const res = await fetch('/api/history');
+            const history = await res.json();
+            const item = history.find(h => String(h.id) === String(id));
+            return item || null;
+        } catch (e) {
+            console.error('❌ StorageAdapter getHistoryItemById 失败:', e);
+        }
+    }
+
     return new Promise((resolve) => {
         if (!db) return resolve(null);
         try {
@@ -626,7 +719,66 @@ function cleanupRedundantSuiteKeywordOnlyHistory(savedId, savedItem) {
     });
 }
 
-function storeItem(item, callback) {
+async function storeItem(item, callback) {
+    if (StorageAdapter.isServer()) {
+        try {
+            const activeMode = getActivePageMode();
+            let chatTitle = '';
+            
+            if (activeMode === 'chat' && typeof chatConversations !== 'undefined' && typeof currentChatId !== 'undefined') {
+                const activeChat = chatConversations.find(c => c.id === currentChatId);
+                if (activeChat) {
+                    chatTitle = activeChat.title;
+                }
+            }
+            
+            const recordToSave = {
+                id: item.id || Date.now(),
+                type: item.type || 'image',
+                prompt: item.prompt || '',
+                negativePrompt: item.negativePrompt || '',
+                model: item.model || '',
+                ratio: item.ratio || '1:1',
+                size: item.size || '1K',
+                width: item.width || 1024,
+                height: item.height || 1024,
+                seed: item.seed || -1,
+                steps: item.steps || 20,
+                scale: item.scale || 7,
+                timestamp: item.timestamp || Date.now(),
+                // 三层归口落盘所需的字段
+                mode: activeMode,
+                chatName: chatTitle,
+                imageData: item.url
+            };
+            
+            // 如果是套图模式，同步拷贝套图专属的结构字段
+            if (activeMode === 'suite') {
+                recordToSave.keywords = item.keywords || [];
+                recordToSave.rule = item.rule || '';
+                recordToSave.images = item.images || [];
+                recordToSave.firstImage = item.firstImage || '';
+                recordToSave.type = 'suite';
+            }
+            
+            const res = await fetch('/api/save-image', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(recordToSave)
+            });
+            const data = await res.json();
+            if (data.success) {
+                item.url = data.url; // 将前端原有的内存 Base64 替换为物理落盘相对路径 /output/...
+                item.id = recordToSave.id;
+                loadHistoryPage(1);
+                if (callback) callback(item.id);
+                return;
+            }
+        } catch (e) {
+            console.error('❌ StorageAdapter 物理存图失败，自适应降级至浏览器 IndexedDB 存储:', e);
+        }
+    }
+
     const request = db.transaction([STORE_NAME], "readwrite")
         .objectStore(STORE_NAME)
         .add(item);
@@ -645,7 +797,36 @@ function storeItem(item, callback) {
 }
 
 // 更新历史记录（用于套图模式逐步更新）
-function updateSuiteHistoryInDB(historyId, updates, callback) {
+async function updateSuiteHistoryInDB(historyId, updates, callback) {
+    if (StorageAdapter.isServer()) {
+        try {
+            const item = await getHistoryItemById(historyId);
+            if (!item) {
+                console.warn("History item not found:", historyId);
+                return null;
+            }
+            
+            Object.assign(item, updates);
+            
+            const res = await fetch('/api/save-image', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(item)
+            });
+            const data = await res.json();
+            if (data.success) {
+                const idx = historyAllItems.findIndex(it => it.id === historyId);
+                if (idx !== -1) {
+                    historyAllItems[idx] = stripHeavyFields(item);
+                }
+                if (callback) callback(historyId);
+                return historyId;
+            }
+        } catch (e) {
+            console.error('❌ StorageAdapter updateSuiteHistoryInDB 失败:', e);
+        }
+    }
+
     if (!db || !historyId) return Promise.resolve(null);
 
     return new Promise((resolve) => {
@@ -704,8 +885,29 @@ function touchSuiteHistoryInDB(historyId, updates, callback) {
     return updateSuiteHistoryInDB(historyId, updates || {}, callback);
 }
 
-function deleteFromDB(id, element) {
+async function deleteFromDB(id, element) {
     if(!confirm("确定删除这张图片吗？")) return;
+    
+    if (StorageAdapter.isServer()) {
+        try {
+            const res = await fetch(`/api/history?id=${id}`, { method: 'DELETE' });
+            const data = await res.json();
+            if (data.success) {
+                if (element) {
+                    element.style.transition = 'opacity 0.3s, transform 0.3s';
+                    element.style.opacity = '0';
+                    element.style.transform = 'scale(0.8)';
+                    setTimeout(() => element.remove(), 300);
+                }
+                loadHistoryPage(historyCurrentPage);
+                showToast('已删除');
+                return;
+            }
+        } catch (e) {
+            console.error('❌ StorageAdapter 删除历史记录失败:', e);
+        }
+    }
+
     if (!db) return;
     const transaction = db.transaction([STORE_NAME], "readwrite");
     const store = transaction.objectStore(STORE_NAME);
@@ -722,23 +924,33 @@ function deleteFromDB(id, element) {
 }
 
 // 删除回传卡片（同时删除历史记录）
-function deleteResultCard(btn) {
+async function deleteResultCard(btn) {
     if (!confirm("确定删除这张图片吗？")) return;
     
     const card = btn.closest('.result-card');
     if (!card) return;
     
-    const historyId = card.dataset.historyId ? parseInt(card.dataset.historyId) : null;
+    const historyId = card.dataset.historyId ? card.dataset.historyId : null;
     
-    // 从数据库删除
-    if (db && historyId && !isNaN(historyId)) {
-        const transaction = db.transaction([STORE_NAME], "readwrite");
-        const store = transaction.objectStore(STORE_NAME);
-        store.delete(historyId);
-        transaction.oncomplete = () => {
-            loadHistoryPage(historyCurrentPage);
-        };
-    }
+    const doDelete = async () => {
+        if (StorageAdapter.isServer() && historyId) {
+            try {
+                await fetch(`/api/history?id=${historyId}`, { method: 'DELETE' });
+                loadHistoryPage(historyCurrentPage);
+            } catch (e) {
+                console.error('❌ StorageAdapter 删除卡片文件失败:', e);
+            }
+        } else if (db && historyId && !isNaN(parseInt(historyId))) {
+            const transaction = db.transaction([STORE_NAME], "readwrite");
+            const store = transaction.objectStore(STORE_NAME);
+            store.delete(parseInt(historyId));
+            transaction.oncomplete = () => {
+                loadHistoryPage(historyCurrentPage);
+            };
+        }
+    };
+    
+    await doDelete();
     
     // 删除卡片 DOM
     if (card.id) deleteCardFiles(card.id);
@@ -750,8 +962,27 @@ function deleteResultCard(btn) {
     showToast('已删除');
 }
 
-function clearAllHistoryDB() {
+async function clearAllHistoryDB() {
     if(!confirm("这将清空所有本地保存的历史记录，且无法恢复！确定吗？")) return;
+    
+    if (StorageAdapter.isServer()) {
+        try {
+            const res = await fetch('/api/history', { method: 'DELETE' });
+            const data = await res.json();
+            if (data.success) {
+                historyAllItems = [];
+                _cardFilesMap.clear(); // 清理所有卡片文件引用，释放内存
+                historyCurrentPage = 1;
+                historyTotalPages = 1;
+                renderHistoryPage();
+                showToast('已成功清空所有历史');
+                return;
+            }
+        } catch (e) {
+            console.error('❌ StorageAdapter 清空历史失败:', e);
+        }
+    }
+
     if (!db) return;
     const transaction = db.transaction([STORE_NAME], "readwrite");
     const store = transaction.objectStore(STORE_NAME);
@@ -772,13 +1003,37 @@ function loadHistoryToSidebar() {
 // loadHistory 别名，兼容旧代码调用
 const loadHistory = loadHistoryToSidebar;
 
-function loadHistoryPage(page = historyCurrentPage) {
-    if (!db) return;
+async function loadHistoryPage(page = historyCurrentPage) {
     const grid = document.getElementById('historyGrid');
     if (!grid) return;
 
     historyIsLoading = true;
     grid.innerHTML = '<div style="text-align: center; padding: 40px; color: var(--text-sub);"><i class="fas fa-spinner fa-spin" style="font-size: 24px; margin-bottom: 10px; opacity: 0.5;"></i><p>加载历史记录...</p></div>';
+
+    if (StorageAdapter.isServer()) {
+        try {
+            const res = await fetch('/api/history');
+            const allServerItems = await res.json();
+            const totalCount = allServerItems.length;
+            historyTotalPages = Math.ceil(totalCount / historyPageSize) || 1;
+            historyCurrentPage = Math.min(Math.max(1, page), historyTotalPages);
+            const skipCount = (historyCurrentPage - 1) * historyPageSize;
+            const pageItems = allServerItems.slice(skipCount, skipCount + historyPageSize);
+            
+            historyAllItems = pageItems;
+            historyIsLoading = false;
+            renderHistoryPageItems(pageItems, totalCount);
+            return;
+        } catch (e) {
+            console.error('❌ StorageAdapter 加载历史失败，降级回本地数据库:', e);
+        }
+    }
+
+    if (!db) {
+        historyIsLoading = false;
+        grid.innerHTML = '<div style="text-align: center; padding: 40px; color: var(--text-sub);"><p>本地数据库未准备就绪</p></div>';
+        return;
+    }
 
     const countTx = db.transaction([STORE_NAME], "readonly");
     const countStore = countTx.objectStore(STORE_NAME);
@@ -980,7 +1235,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
     initSuiteArchiveSettings();
 
-    initDB().catch(e => debugLog("DB init skipped or failed"));
+    (async () => {
+        try {
+            await StorageAdapter.init();
+        } catch (_) {}
+        try {
+            await initDB();
+        } catch (e) {
+            debugLog("DB init skipped or failed");
+        }
+    })();
     renderTaskResultNotifications();
 
     // 全局滚轮事件：在左右空白区域也能滚动 scrollArea
@@ -6383,7 +6647,17 @@ function saveTaskResultNotifications(notifications) {
     localStorage.setItem(TASK_RESULT_NOTIFICATIONS_KEY, JSON.stringify(notifications || []));
 }
 
-function readHistoryItemById(itemId) {
+async function readHistoryItemById(itemId) {
+    if (StorageAdapter.isServer()) {
+        try {
+            const item = await getHistoryItemById(itemId);
+            if (item) return item;
+            throw new Error('history item not found on server');
+        } catch (e) {
+            throw e;
+        }
+    }
+
     return new Promise((resolve, reject) => {
         if (!db || !itemId) {
             reject(new Error('history db not ready'));
@@ -6813,20 +7087,23 @@ function updateSelectedCount() {
 }
 
 // 删除选中的历史记录
-function deleteSelectedHistory() {
+async function deleteSelectedHistory() {
     if (selectedHistoryIds.size === 0) {
         showToast('请先选择要删除的记录');
         return;
     }
     if (!confirm(`确定删除选中的 ${selectedHistoryIds.size} 条记录吗？`)) return;
     
-    if (!db) return;
-    
-    const transaction = db.transaction([STORE_NAME], "readwrite");
-    const store = transaction.objectStore(STORE_NAME);
-    
+    const deletePromises = [];
     selectedHistoryIds.forEach(id => {
-        store.delete(id);
+        if (StorageAdapter.isServer()) {
+            deletePromises.push(
+                fetch(`/api/history?id=${id}`, { method: 'DELETE' })
+                    .then(res => res.json())
+                    .catch(e => console.error('⚠️ 批量删除本地物理文件失败:', id, e))
+            );
+        }
+        
         // 从内存中移除
         const index = historyAllItems.findIndex(item => item.id === id);
         if (index !== -1) {
@@ -6840,6 +7117,28 @@ function deleteSelectedHistory() {
             el.style.transform = 'scale(0.8)';
             setTimeout(() => el.remove(), 300);
         }
+    });
+
+    if (StorageAdapter.isServer()) {
+        await Promise.all(deletePromises);
+        historyTotalPages = Math.ceil(historyAllItems.length / historyPageSize) || 1;
+        if (historyCurrentPage > historyTotalPages) {
+            historyCurrentPage = historyTotalPages;
+        }
+        selectedHistoryIds.clear();
+        updateSelectedCount();
+        showToast('已删除选中的记录');
+        loadHistoryPage(historyCurrentPage);
+        return;
+    }
+    
+    if (!db) return;
+    
+    const transaction = db.transaction([STORE_NAME], "readwrite");
+    const store = transaction.objectStore(STORE_NAME);
+    
+    selectedHistoryIds.forEach(id => {
+        store.delete(id);
     });
     
     transaction.oncomplete = () => {
@@ -6888,30 +7187,37 @@ function copyHistoryResult(btn) {
 }
 
 async function reuseHistoryItemById(itemId) {
-    if (!db) return;
+    let item = null;
+    if (StorageAdapter.isServer()) {
+        item = await getHistoryItemById(itemId);
+    } else if (db) {
+        item = await new Promise(resolve => {
+            try {
+                const transaction = db.transaction([STORE_NAME], "readonly");
+                const store = transaction.objectStore(STORE_NAME);
+                const request = store.get(Number(itemId));
+                request.onsuccess = (e) => resolve(e.target.result || null);
+                request.onerror = () => resolve(null);
+            } catch (_) { resolve(null); }
+        });
+    }
 
-    const transaction = db.transaction([STORE_NAME], "readonly");
-    const store = transaction.objectStore(STORE_NAME);
-    const request = store.get(Number(itemId));
+    if (!item) {
+        alert('找不到该记录');
+        return;
+    }
 
-    request.onsuccess = (e) => {
-        const item = e.target.result;
-        if (!item) {
-            alert('找不到该记录');
-            return;
-        }
+    uploadedFiles = [];
 
-        uploadedFiles = [];
+    const promptInput = document.getElementById('prompt');
+    if (promptInput && item.prompt) {
+        promptInput.value = item.prompt;
+        promptInput.style.height = 'auto';
+        promptInput.style.height = promptInput.scrollHeight + 'px';
+    }
 
-        const promptInput = document.getElementById('prompt');
-        if (promptInput && item.prompt) {
-            promptInput.value = item.prompt;
-            promptInput.style.height = 'auto';
-            promptInput.style.height = promptInput.scrollHeight + 'px';
-        }
-
-        const modeSelect = document.getElementById('modeSelect');
-        const isRecognition = item.type === 'recognition';
+    const modeSelect = document.getElementById('modeSelect');
+    const isRecognition = item.type === 'recognition';
 
         if (modeSelect) {
             modeSelect.value = isRecognition ? 'media-recognition' : 'image-generation';
@@ -6972,21 +7278,17 @@ async function reuseHistoryItemById(itemId) {
 
         promptInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
         promptInput.focus();
-    };
-
-    request.onerror = () => {
-        alert('读取记录失败');
-    };
 }
 
 // 按需加载历史记录原图并打开放大镜（避免内存中常驻大图）
 async function openHistoryModal(itemId) {
     const item = await getHistoryItemById(itemId);
-    if (!item || !item.image) {
+    const imageUrl = item ? (item.image || item.url) : null;
+    if (!item || !imageUrl) {
         showToast('无法加载图片');
         return;
     }
-    openModal({ id: itemId, image: item.image, prompt: item.prompt || '' });
+    openModal({ id: itemId, image: imageUrl, prompt: item.prompt || '' });
 }
 
 function openModal(item) {
