@@ -8,7 +8,7 @@ echo.
 :: 1. Run build script
 echo [1/3] Running modular code packaging...
 cd /d "%~dp0"
-node build.js
+"%~dp0node.exe" build.js
 if %errorlevel% neq 0 (
     echo.
     echo [ERROR] Build failed! Deployment aborted.

@@ -9,6 +9,7 @@ echo.
 start http://localhost:3000
 
 :: Run the Node.js backend
-node server.js
+cd /d "%~dp0"
+"%~dp0node.exe" server.js
 
 pause
