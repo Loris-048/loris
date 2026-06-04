@@ -726,7 +726,7 @@ async function storeItem(item, callback) {
             let chatTitle = '';
             
             if (activeMode === 'chat' && typeof chatConversations !== 'undefined' && typeof currentChatId !== 'undefined') {
-                const activeChat = chatConversations.find(c => c.id === currentChatId);
+                const activeChat = chatConversations.find(c => String(c.id) === String(currentChatId));
                 if (activeChat) {
                     chatTitle = activeChat.title;
                 }
