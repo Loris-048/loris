@@ -9,7 +9,7 @@ const PUBLIC_DIR = path.join(__dirname, 'public');
 
 // 默认配置
 let config = {
-    port: 3000,
+    port: 3005,
     banana_token: "",
     modelscope_token: "",
     chat_api_base: "",
@@ -499,7 +499,7 @@ function getLocalIP() {
     return '127.0.0.1';
 }
 
-const PORT = config.port || 3000;
+const PORT = config.port || 3005;
 server.listen(PORT, '0.0.0.0', () => {
     const localIP = getLocalIP();
     console.log(`================================================================`);

@@ -6,7 +6,7 @@ echo ========================================================
 echo.
 
 :: Launch the default browser to open the local page
-start http://localhost:3000
+start http://localhost:3005
 
 :: Run the Node.js backend
 cd /d "%~dp0"
