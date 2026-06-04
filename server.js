@@ -457,9 +457,17 @@ const server = http.createServer((req, res) => {
     
     // 拦截本地磁盘物理图片资源请求，映射回 Loirs_Data/output/...
     if (pathname.startsWith('/output/')) {
-        const relativePath = decodeURIComponent(pathname.substring(8));
+        let relativePath = pathname.substring(8);
+        try {
+            relativePath = decodeURIComponent(relativePath);
+        } catch (e) {
+            console.error('⚠️ [Static] decodeURIComponent 解析相对路径失败:', relativePath, e);
+        }
         const safeRelativePath = path.normalize(relativePath).replace(/^(\.\.[\/\\])+/, '');
         const filePath = path.join(getStorageRoot(), 'output', safeRelativePath);
+        
+        console.log(`📁 [Static Forward]: URL ${pathname} -> 映射物理文件: ${filePath}`);
+        
         serveStaticFile(req, res, filePath);
         return;
     }
