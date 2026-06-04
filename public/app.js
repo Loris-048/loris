@@ -732,6 +732,15 @@ async function storeItem(item, callback) {
                 }
             }
             
+            let imageToSave = null;
+            if (item.image && typeof item.image === 'string' && item.image.startsWith('data:image/')) {
+                imageToSave = item.image;
+            } else if (item.url && typeof item.url === 'string' && item.url.startsWith('data:image/')) {
+                imageToSave = item.url;
+            } else if (item.result && typeof item.result === 'string' && item.result.startsWith('data:image/')) {
+                imageToSave = item.result;
+            }
+
             const recordToSave = {
                 ...item, // 100% 无损拷贝原始数据对象的所有深层高维元数据字段（如 aspectRatio, targetResolution, actualResolution 等）
                 id: item.id || Date.now(),
@@ -750,7 +759,7 @@ async function storeItem(item, callback) {
                 // 三层归口落盘所需的字段：兼容常规生图 item.image 和 AI回传/聊天结果 item.result、item.url
                 mode: activeMode,
                 chatName: chatTitle,
-                imageData: item.image || item.url || item.result
+                imageData: imageToSave
             };
             
             // 如果是套图模式，同步拷贝套图专属的结构字段
@@ -1506,6 +1515,9 @@ function markDeadImageUrl(url) {
 
 function handleImageLoadError(imgEl, placeholderText = '图片链接已失效') {
     const url = imgEl?.currentSrc || imgEl?.src || imgEl?.getAttribute?.('src') || '';
+    if (url && typeof url === 'string' && url.startsWith('data:image/svg+xml')) {
+        return; // SVG 默认图标绝对不当作错误处理
+    }
     markDeadImageUrl(url);
     if (!imgEl) return;
     imgEl.onerror = null;

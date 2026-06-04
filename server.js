@@ -207,7 +207,7 @@ const server = http.createServer((req, res) => {
                     return;
                 }
                 
-                if (record.imageData) {
+                if (record.imageData && typeof record.imageData === 'string' && record.imageData.startsWith('data:image/')) {
                     // 处理 Base64 数据
                     const base64Data = record.imageData.replace(/^data:image\/\w+;base64,/, "");
                     const buffer = Buffer.from(base64Data, 'base64');
