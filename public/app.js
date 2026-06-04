@@ -7001,7 +7001,7 @@ function createHistoryThumbnail(item) {
         const ratioText = item.aspectRatio || item.ratio || '';
         
         let targetResText = '';
-        if (item.targetResolution) {
+        if (item.targetResolution && item.targetResolution.width && item.targetResolution.height) {
             targetResText = `${item.targetResolution.width}×${item.targetResolution.height}`;
         } else if (item.width && item.height) {
             targetResText = `${item.width}×${item.height}`;
@@ -7010,7 +7010,7 @@ function createHistoryThumbnail(item) {
         const modelText = item.model || '';
         
         let actualResText = '';
-        if (item.actualResolution) {
+        if (item.actualResolution && item.actualResolution.width && item.actualResolution.height) {
             actualResText = `${item.actualResolution.width}×${item.actualResolution.height}`;
         }
         
