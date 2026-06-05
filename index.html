@@ -7890,9 +7890,10 @@ function selectCustomOption(menuId, valueId, hiddenId, item, value) {
     menu.classList.remove('show');
     const overlay = document.getElementById('chatSelectOverlay');
     if (overlay) overlay.classList.remove('active');
-    if (hiddenId === 'aspectRatio') {
+    if (hiddenId === 'aspectRatio' || hiddenId === 'suiteRatioInput') {
         const evt = new Event('change', { bubbles: true });
-        document.getElementById(hiddenId).dispatchEvent(evt);
+        const targetEl = document.getElementById(hiddenId);
+        if (targetEl) targetEl.dispatchEvent(evt);
     }
     if (hiddenId === 'imageSizeSelect') {
         updatePrice();
@@ -8853,7 +8854,7 @@ function safeSetSelect(selectEl, value, defaultValue) {
             .suite-preview-row { display:none; gap:10px; overflow-x:auto; padding-bottom:2px; }
             .suite-preview-row.has-items { display:flex; }
             .suite-scroll { flex:1; min-height:0; overflow-y:auto; padding-right:4px; }
-            .suite-grid { --suite-min:260px; display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:14px; align-items:start; padding-bottom:20px; max-height: calc(100vh - 320px); overflow-y: auto; }
+            .suite-grid { --suite-min:260px; display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:14px; align-items:start; padding-bottom:20px; }
             .suite-grid[data-columns='3'] { grid-template-columns:repeat(3, minmax(0, 1fr)); }
             .suite-grid[data-columns='2'] { grid-template-columns:repeat(2, minmax(0, 1fr)); }
             .suite-grid[data-columns='1'] { grid-template-columns:repeat(1, minmax(0, 1fr)); }
@@ -10396,6 +10397,30 @@ function safeSetSelect(selectEl, value, defaultValue) {
             hint.style.color = '';
         }
     }
+    function updateExistingSlotsRatio() {
+        const ratioSel = document.getElementById('suiteRatioInput');
+        const sizeInput = document.getElementById('suiteSizeInput');
+        if (!ratioSel) return;
+        const ratio = ratioSel.value;
+        const imageSize = sizeInput ? sizeInput.value : '1K';
+        const target = getTargetResolution(imageSize, ratio);
+        const ratioPair = parseRatioText(ratio);
+        const cssRatio = ratio === 'auto'
+            ? `${Math.max(1, target.width || 1)} / ${Math.max(1, target.height || 1)}`
+            : `${ratioPair[0]} / ${ratioPair[1]}`;
+        updateSuiteGridDensity();
+        const cards = document.querySelectorAll('.suite-card');
+        cards.forEach(card => {
+            const content = card.querySelector('.suite-card-content');
+            if (content) {
+                content.style.setProperty('--slot-ratio', cssRatio);
+            }
+            const meta = card.querySelector('.suite-meta');
+            if (meta) {
+                meta.textContent = `${target.width} x ${target.height}`;
+            }
+        });
+    }
     function buildSuitePage() {
         const nav = document.querySelector('.navbar');
         const mainContainer = document.querySelector('.main-container');
@@ -10691,6 +10716,9 @@ function safeSetSelect(selectEl, value, defaultValue) {
             fileInput.value = '';
         });
         buildBtn.addEventListener('click', buildSlots);
+        if (ratioInput) {
+            ratioInput.addEventListener('change', updateExistingSlotsRatio);
+        }
         document.getElementById('suiteGenKeywordsBtn').addEventListener('click', generateSuiteKeywords);
         document.getElementById('suiteGenImagesBtn').addEventListener('click', generateSuiteImages);
         document.getElementById('suiteNewTaskBtn').addEventListener('click', suiteNewTask);
