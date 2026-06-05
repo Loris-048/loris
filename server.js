@@ -52,6 +52,30 @@ function ensureStorageDirs() {
     });
 }
 
+// 全局辅助函数：将图片（Base64 编码数据或远程 HTTP/HTTPS URL）保存到指定的物理磁盘文件路径下
+async function saveImageToDisk(src, destPath) {
+    if (!src || typeof src !== 'string') return false;
+    
+    try {
+        if (src.startsWith('data:image/')) {
+            const base64Data = src.replace(/^data:image\/\w+;base64,/, "");
+            const buffer = Buffer.from(base64Data, 'base64');
+            fs.writeFileSync(destPath, buffer);
+            return true;
+        } else if (src.startsWith('http://') || src.startsWith('https://')) {
+            const response = await fetch(src);
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            const arrayBuffer = await response.arrayBuffer();
+            const buffer = Buffer.from(arrayBuffer);
+            fs.writeFileSync(destPath, buffer);
+            return true;
+        }
+    } catch (e) {
+        console.error(`❌ 物理写盘失败，来源 URL/Base64 "${src.substring(0, 100)}..."，目标路径 "${destPath}":`, e);
+    }
+    return false;
+}
+
 // 获取历史数据库 history.json 文件的物理路径
 function getHistoryPath() {
     return path.join(getStorageRoot(), 'history.json');
@@ -198,7 +222,7 @@ const server = http.createServer((req, res) => {
         req.on('data', chunk => {
             body += chunk.toString();
         });
-        req.on('end', () => {
+        req.on('end', async () => {
             try {
                 const record = JSON.parse(body);
                 if (!record.id) {
@@ -207,11 +231,12 @@ const server = http.createServer((req, res) => {
                     return;
                 }
                 
-                // 如果是套图模式，批量保存子插槽图片
+                // 确定套图和普通模式
                 const isSuiteMode = record.mode === 'suite' || record.type === 'suite';
                 const root = getStorageRoot();
                 
-                if (isSuiteMode && Array.isArray(record.images) && record.images.length > 0) {
+                // 1. 如果是套图模式
+                if (isSuiteMode) {
                     const destDir = path.join(root, 'output', '套图');
                     if (!fs.existsSync(destDir)) {
                         fs.mkdirSync(destDir, { recursive: true });
@@ -231,28 +256,47 @@ const server = http.createServer((req, res) => {
                         fs.mkdirSync(taskDir, { recursive: true });
                     }
                     
-                    record.images.forEach((img) => {
-                        const imgData = img.imageUrl || img.url;
-                        if (img && imgData && typeof imgData === 'string' && imgData.startsWith('data:image/')) {
-                            const base64Data = imgData.replace(/^data:image\/\w+;base64,/, "");
-                            const buffer = Buffer.from(base64Data, 'base64');
-                            
-                            const imgFilename = `slot${img.index || 1}.png`;
-                            const imgPath = path.join(taskDir, imgFilename);
-                            
-                            fs.writeFileSync(imgPath, buffer);
-                            
-                            // 更新相对路径 (URL 进行编码以防乱码)
-                            const localRelativePath = `/output/%E5%A5%97%E5%9B%BE/${encodeURIComponent(suiteFolderName)}/${imgFilename}`;
-                            img.imageUrl = localRelativePath;
-                            img.url = localRelativePath;
-                            if (img.thumbnail && img.thumbnail.startsWith('data:image/')) {
-                                img.thumbnail = localRelativePath;
+                    // 保存生成的插槽子图片 (支持 Base64 或 http/https 网络地址)
+                    if (Array.isArray(record.images) && record.images.length > 0) {
+                        for (const img of record.images) {
+                            const imgData = img.imageUrl || img.url;
+                            if (img && imgData && typeof imgData === 'string' && (imgData.startsWith('data:image/') || imgData.startsWith('http'))) {
+                                const imgFilename = `slot${img.index || 1}.png`;
+                                const imgPath = path.join(taskDir, imgFilename);
+                                
+                                const success = await saveImageToDisk(imgData, imgPath);
+                                if (success) {
+                                    // 更新相对路径 (URL 进行编码以防乱码)
+                                    const localRelativePath = `/output/%E5%A5%97%E5%9B%BE/${encodeURIComponent(suiteFolderName)}/${imgFilename}`;
+                                    img.imageUrl = localRelativePath;
+                                    img.url = localRelativePath;
+                                    if (img.thumbnail) {
+                                        img.thumbnail = localRelativePath;
+                                    }
+                                }
                             }
                         }
-                    });
+                    }
                     
-                    const firstValidImg = record.images.find(img => (img.imageUrl || img.url) && !(img.imageUrl || img.url).startsWith('data:image/'));
+                    // 保存参考图片 (如果有的话)
+                    if (Array.isArray(record.fileData) && record.fileData.length > 0) {
+                        for (let index = 0; index < record.fileData.length; index++) {
+                            const file = record.fileData[index];
+                            if (file && file.data && typeof file.data === 'string' && file.data.startsWith('data:image/')) {
+                                const refFilename = `ref${index + 1}.png`;
+                                const refPath = path.join(taskDir, refFilename);
+                                
+                                const success = await saveImageToDisk(file.data, refPath);
+                                if (success) {
+                                    // 清洗掉 Base64 替换为精简物理 URL，防止 history.json 爆满
+                                    file.data = `/output/%E5%A5%97%E5%9B%BE/${encodeURIComponent(suiteFolderName)}/${refFilename}`;
+                                }
+                            }
+                        }
+                    }
+                    
+                    // 设置封面图
+                    const firstValidImg = record.images && record.images.find(img => (img.imageUrl || img.url) && !(img.imageUrl || img.url).startsWith('data:image/') && !(img.imageUrl || img.url).startsWith('http'));
                     if (firstValidImg) {
                         const firstUrl = firstValidImg.imageUrl || firstValidImg.url;
                         record.firstImage = firstUrl;
@@ -261,20 +305,13 @@ const server = http.createServer((req, res) => {
                     }
                 }
                 
-                if (record.imageData && typeof record.imageData === 'string' && record.imageData.startsWith('data:image/')) {
-                    // 处理 Base64 数据
-                    const base64Data = record.imageData.replace(/^data:image\/\w+;base64,/, "");
-                    const buffer = Buffer.from(base64Data, 'base64');
-                    
+                // 2. 如果是常规模式或对话模式
+                else {
                     const mode = record.mode || 'single';
-                    const root = getStorageRoot();
                     let destDir = path.join(root, 'output', '常规');
                     let modeFolder = '常规';
                     
-                    if (mode === 'suite') {
-                        destDir = path.join(root, 'output', '套图');
-                        modeFolder = '套图';
-                    } else if (mode === 'chat') {
+                    if (mode === 'chat') {
                         const chatFolderName = sanitizeFolderName(record.chatName);
                         destDir = path.join(root, 'output', '对话', chatFolderName);
                         modeFolder = '对话';
@@ -291,20 +328,48 @@ const server = http.createServer((req, res) => {
                     const imgFilename = `${seqNum}_${timeStr}.png`;
                     const imgPath = path.join(destDir, imgFilename);
                     
-                    fs.writeFileSync(imgPath, buffer);
-                    
-                    // 构建前端可访问的相对 URL (URL 必须进行编码以防中文乱码)
                     let browserUrl = '';
-                    if (mode === 'chat') {
-                        const chatFolderName = sanitizeFolderName(record.chatName);
-                        browserUrl = `/output/对话/${encodeURIComponent(chatFolderName)}/${imgFilename}`;
-                    } else {
-                        browserUrl = `/output/${encodeURIComponent(modeFolder)}/${imgFilename}`;
+                    
+                    // 2a. 保存生成的主图
+                    if (record.imageData && typeof record.imageData === 'string' && (record.imageData.startsWith('data:image/') || record.imageData.startsWith('http'))) {
+                        const success = await saveImageToDisk(record.imageData, imgPath);
+                        if (success) {
+                            if (mode === 'chat') {
+                                const chatFolderName = sanitizeFolderName(record.chatName);
+                                browserUrl = `/output/对话/${encodeURIComponent(chatFolderName)}/${imgFilename}`;
+                            } else {
+                                browserUrl = `/output/${encodeURIComponent(modeFolder)}/${imgFilename}`;
+                            }
+                        }
+                    }
+                    
+                    // 2b. 保存参考图
+                    if (Array.isArray(record.fileData) && record.fileData.length > 0) {
+                        for (let index = 0; index < record.fileData.length; index++) {
+                            const file = record.fileData[index];
+                            if (file && file.data && typeof file.data === 'string' && file.data.startsWith('data:image/')) {
+                                const refFilename = `${seqNum}_${timeStr}_ref${index + 1}.png`;
+                                const refPath = path.join(destDir, refFilename);
+                                
+                                const success = await saveImageToDisk(file.data, refPath);
+                                if (success) {
+                                    if (mode === 'chat') {
+                                        const chatFolderName = sanitizeFolderName(record.chatName);
+                                        file.data = `/output/对话/${encodeURIComponent(chatFolderName)}/${refFilename}`;
+                                    } else {
+                                        file.data = `/output/常规/${refFilename}`;
+                                    }
+                                }
+                            }
+                        }
                     }
                     
                     // 剔除高内存消耗的 imageData，替换为轻量级 url
                     delete record.imageData;
-                    record.url = browserUrl;
+                    if (browserUrl) {
+                        record.url = browserUrl;
+                        record.thumbnail = browserUrl;
+                    }
                 }
                 
                 // 将记录写入历史数据库 history.json

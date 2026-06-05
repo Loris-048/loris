@@ -834,6 +834,9 @@ function saveToDB(data, promptText, type = 'image', files = null, metadata = nul
         item.targetResolution = metadata.targetResolution;
         item.model = metadata.model;
         item.actualResolution = metadata.actualResolution;
+        if (metadata.taskMode) {
+            item.taskMode = metadata.taskMode;
+        }
     }
     return new Promise((resolve) => {
         const doSave = () => {
@@ -962,9 +965,9 @@ function cleanupRedundantSuiteKeywordOnlyHistory(savedId, savedItem) {
 async function storeItem(item, callback) {
     if (StorageAdapter.isServer()) {
         try {
-            const activeMode = getActivePageMode();
+            const saveMode = item.mode || item.taskMode || (item.type === 'suite' ? 'suite' : (item.type === 'recognition' ? 'recognition' : 'single'));
             let chatTitle = '';
-            if (activeMode === 'chat' && typeof chatConversations !== 'undefined' && typeof currentChatId !== 'undefined') {
+            if (saveMode === 'chat' && typeof chatConversations !== 'undefined' && typeof currentChatId !== 'undefined') {
                 const activeChat = chatConversations.find(c => String(c.id) === String(currentChatId));
                 if (activeChat) {
                     chatTitle = activeChat.title;
@@ -993,11 +996,11 @@ async function storeItem(item, callback) {
                 steps: item.steps || 20,
                 scale: item.scale || 7,
                 timestamp: item.timestamp || Date.now(),
-                mode: activeMode,
+                mode: saveMode,
                 chatName: chatTitle,
                 imageData: imageToSave
             };
-            if (activeMode === 'suite') {
+            if (saveMode === 'suite') {
                 recordToSave.keywords = item.keywords || [];
                 recordToSave.rule = item.rule || '';
                 recordToSave.images = item.images || [];
@@ -2812,7 +2815,7 @@ async function submitChatImageTask(chat, userMessage, intent) {
     if (imageUrl) {
         let cleanedUrl = String(imageUrl || '').trim();
         const actualPixels = await getImageNaturalPixels(cleanedUrl);
-        if (StorageAdapter.isServer() && cleanedUrl.startsWith('data:image/')) {
+        if (StorageAdapter.isServer() && (cleanedUrl.startsWith('data:image/') || cleanedUrl.startsWith('http'))) {
             try {
                 const recordToSave = {
                     id: Date.now() + '-' + Math.floor(Math.random() * 1000),
@@ -2821,7 +2824,12 @@ async function submitChatImageTask(chat, userMessage, intent) {
                     timestamp: Date.now(),
                     mode: 'chat',
                     chatName: chat?.title || '未命名对话',
-                    imageData: cleanedUrl
+                    imageData: cleanedUrl,
+                    fileData: Array.isArray(userMessage?.images) ? userMessage.images.map((img, idx) => ({
+                        name: img.originalName || `ref_${idx + 1}.png`,
+                        type: 'image/png',
+                        data: img.previewData || img.data || ''
+                    })).filter(img => img.data && img.data.startsWith('data:image/')) : []
                 };
                 const res = await fetch('/api/save-image', {
                     method: 'POST',
@@ -7288,7 +7296,7 @@ async function startTask(task) {
         const targetResolution = calculateTargetResolution(task.imageSize, task.aspectRatio);
         if (task.mode === 'media-recognition') {
             newCard = createTextResultCard(result, task.prompt, task.files[0]?.name || '未知文件', task.files, timeStr, task.model);
-            saveToDB(result, task.prompt, 'recognition', task.files, { model: task.model }).then(historyId => {
+            saveToDB(result, task.prompt, 'recognition', task.files, { model: task.model, taskMode: task.mode || 'recognition' }).then(historyId => {
                 if (historyId && newCard) {
                     newCard.dataset.historyId = historyId;
                 }
@@ -7324,7 +7332,8 @@ async function startTask(task) {
                 imageSize: task.imageSize,
                 targetResolution: targetResolution,
                 model: task.model,
-                actualResolution: actualResolution
+                actualResolution: actualResolution,
+                taskMode: task.mode || 'single'
             }).then(historyId => {
                 debugLog('Image saved, historyId:', historyId, 'newCard exists:', !!newCard, 'newCard in DOM:', newCard?.parentNode != null);
                 if (historyId && newCard) {

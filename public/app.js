@@ -567,6 +567,9 @@ function saveToDB(data, promptText, type = 'image', files = null, metadata = nul
         item.targetResolution = metadata.targetResolution;
         item.model = metadata.model;
         item.actualResolution = metadata.actualResolution;
+        if (metadata.taskMode) {
+            item.taskMode = metadata.taskMode;
+        }
     }
 
     return new Promise((resolve) => {
@@ -722,10 +725,11 @@ function cleanupRedundantSuiteKeywordOnlyHistory(savedId, savedItem) {
 async function storeItem(item, callback) {
     if (StorageAdapter.isServer()) {
         try {
-            const activeMode = getActivePageMode();
+            // 性能优化：通过任务的自身属性（item.type/item.taskMode）决定具体的保存路径，拒绝依靠当前 UI 上切了什么 Tab
+            const saveMode = item.mode || item.taskMode || (item.type === 'suite' ? 'suite' : (item.type === 'recognition' ? 'recognition' : 'single'));
             let chatTitle = '';
             
-            if (activeMode === 'chat' && typeof chatConversations !== 'undefined' && typeof currentChatId !== 'undefined') {
+            if (saveMode === 'chat' && typeof chatConversations !== 'undefined' && typeof currentChatId !== 'undefined') {
                 const activeChat = chatConversations.find(c => String(c.id) === String(currentChatId));
                 if (activeChat) {
                     chatTitle = activeChat.title;
@@ -757,13 +761,13 @@ async function storeItem(item, callback) {
                 scale: item.scale || 7,
                 timestamp: item.timestamp || Date.now(),
                 // 三层归口落盘所需的字段：兼容常规生图 item.image 和 AI回传/聊天结果 item.result、item.url
-                mode: activeMode,
+                mode: saveMode,
                 chatName: chatTitle,
                 imageData: imageToSave
             };
             
             // 如果是套图模式，同步拷贝套图专属的结构字段
-            if (activeMode === 'suite') {
+            if (saveMode === 'suite') {
                 recordToSave.keywords = item.keywords || [];
                 recordToSave.rule = item.rule || '';
                 recordToSave.images = item.images || [];
@@ -2917,7 +2921,7 @@ async function submitChatImageTask(chat, userMessage, intent) {
         const actualPixels = await getImageNaturalPixels(cleanedUrl);
         
         // 自动接入本地落盘服务：对话模式单图在生成完第一秒立即写入物理磁盘并清洗 Base64！
-        if (StorageAdapter.isServer() && cleanedUrl.startsWith('data:image/')) {
+        if (StorageAdapter.isServer() && (cleanedUrl.startsWith('data:image/') || cleanedUrl.startsWith('http'))) {
             try {
                 const recordToSave = {
                     id: Date.now() + '-' + Math.floor(Math.random() * 1000),
@@ -2926,7 +2930,12 @@ async function submitChatImageTask(chat, userMessage, intent) {
                     timestamp: Date.now(),
                     mode: 'chat',
                     chatName: chat?.title || '未命名对话',
-                    imageData: cleanedUrl
+                    imageData: cleanedUrl,
+                    fileData: Array.isArray(userMessage?.images) ? userMessage.images.map((img, idx) => ({
+                        name: img.originalName || `ref_${idx + 1}.png`,
+                        type: 'image/png',
+                        data: img.previewData || img.data || ''
+                    })).filter(img => img.data && img.data.startsWith('data:image/')) : []
                 };
                 const res = await fetch('/api/save-image', {
                     method: 'POST',
@@ -8227,7 +8236,7 @@ async function startTask(task) {
 
         if (task.mode === 'media-recognition') {
             newCard = createTextResultCard(result, task.prompt, task.files[0]?.name || '未知文件', task.files, timeStr, task.model);
-            saveToDB(result, task.prompt, 'recognition', task.files, { model: task.model }).then(historyId => {
+            saveToDB(result, task.prompt, 'recognition', task.files, { model: task.model, taskMode: task.mode || 'recognition' }).then(historyId => {
                 if (historyId && newCard) {
                     newCard.dataset.historyId = historyId;
                 }
@@ -8271,7 +8280,8 @@ async function startTask(task) {
                 imageSize: task.imageSize,
                 targetResolution: targetResolution,
                 model: task.model,
-                actualResolution: actualResolution
+                actualResolution: actualResolution,
+                taskMode: task.mode || 'single'
             }).then(historyId => {
                 debugLog('Image saved, historyId:', historyId, 'newCard exists:', !!newCard, 'newCard in DOM:', newCard?.parentNode != null);
                 if (historyId && newCard) {
