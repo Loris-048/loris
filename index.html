@@ -1011,10 +1011,21 @@ async function storeItem(item, callback) {
             });
             const data = await res.json();
             if (data.success) {
+                const serverRecord = data.record || recordToSave;
                 item.url = data.url; // 将前端原有的内存 Base64 替换为物理落盘相对路径 /output/...
                 item.image = '';     // 物理落盘成功后，立即彻底清空前端庞大的 Base64 内存占用，秒级减负！
                 item.result = '';
-                item.id = recordToSave.id;
+                item.id = serverRecord.id;
+                item.thumbnail = serverRecord.thumbnail || serverRecord.url;
+                item.localFolderName = serverRecord.localFolderName;
+                item.images = serverRecord.images;
+                item.firstImage = serverRecord.firstImage;
+                if (db) {
+                    try {
+                        const tx = db.transaction([STORE_NAME], "readwrite");
+                        tx.objectStore(STORE_NAME).put(serverRecord);
+                    } catch (_) {}
+                }
                 loadHistoryPage(1);
                 if (callback) callback(item.id);
                 return;
@@ -1053,9 +1064,17 @@ async function updateSuiteHistoryInDB(historyId, updates, callback) {
             });
             const data = await res.json();
             if (data.success) {
+                const serverRecord = data.record || item;
+                Object.assign(item, serverRecord);
                 const idx = historyAllItems.findIndex(it => it.id === historyId);
                 if (idx !== -1) {
-                    historyAllItems[idx] = stripHeavyFields(item);
+                    historyAllItems[idx] = stripHeavyFields(serverRecord);
+                }
+                if (db) {
+                    try {
+                        const tx = db.transaction([STORE_NAME], "readwrite");
+                        tx.objectStore(STORE_NAME).put(serverRecord);
+                    } catch (_) {}
                 }
                 if (callback) callback(historyId);
                 return historyId;
@@ -1217,7 +1236,10 @@ async function loadHistoryPage(page = historyCurrentPage) {
     const grid = document.getElementById('historyGrid');
     if (!grid) return;
     historyIsLoading = true;
-    grid.innerHTML = '<div style="text-align: center; padding: 40px; color: var(--text-sub);"><i class="fas fa-spinner fa-spin" style="font-size: 24px; margin-bottom: 10px; opacity: 0.5;"></i><p>加载历史记录...</p></div>';
+    const hasCache = Array.isArray(historyAllItems) && historyAllItems.length > 0;
+    if (!hasCache) {
+        grid.innerHTML = '<div style="text-align: center; padding: 40px; color: var(--text-sub);"><i class="fas fa-spinner fa-spin" style="font-size: 24px; margin-bottom: 10px; opacity: 0.5;"></i><p>加载历史记录...</p></div>';
+    }
     if (StorageAdapter.isServer()) {
         try {
             const res = await fetch('/api/history');
@@ -2788,8 +2810,32 @@ async function submitChatImageTask(chat, userMessage, intent) {
         if (!imageUrl && data?.message) failureReason = data.message;
     }
     if (imageUrl) {
-        const cleanedUrl = String(imageUrl || '').trim();
+        let cleanedUrl = String(imageUrl || '').trim();
         const actualPixels = await getImageNaturalPixels(cleanedUrl);
+        if (StorageAdapter.isServer() && cleanedUrl.startsWith('data:image/')) {
+            try {
+                const recordToSave = {
+                    id: Date.now() + '-' + Math.floor(Math.random() * 1000),
+                    type: 'image',
+                    prompt: intent?.prompt || '',
+                    timestamp: Date.now(),
+                    mode: 'chat',
+                    chatName: chat?.title || '未命名对话',
+                    imageData: cleanedUrl
+                };
+                const res = await fetch('/api/save-image', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(recordToSave)
+                });
+                const resData = await res.json();
+                if (resData && resData.url) {
+                    cleanedUrl = resData.url;
+                }
+            } catch (e) {
+                console.error('❌ 保存对话消息单张图片落盘失败:', e);
+            }
+        }
         return { status: 'success', imageUrl: cleanedUrl, taskId, imageMeta, actualPixels };
     }
     return { status: 'failed', taskId, reason: failureReason || '生图超时，请重试' };
@@ -6300,6 +6346,27 @@ function createHistoryThumbnail(item) {
             }
         } catch (_) {}
     }
+    let titleTip = '';
+    if (isSuite) {
+        if (item.localFolderName) {
+            titleTip = `套图物理磁盘目录:\nLoirs_Data/output/套图/${item.localFolderName}`;
+        } else {
+            titleTip = '套图模式（尚无子插槽图片生成落盘）';
+        }
+    } else if (item.mode === 'chat' || item.chatName) {
+        const chatFolderName = item.chatName || '未命名对话';
+        if (localFilename) {
+            titleTip = `对话磁盘物理文件:\nLoirs_Data/output/对话/${chatFolderName}/${localFilename}.png`;
+        } else {
+            titleTip = `对话模式 (${chatFolderName})`;
+        }
+    } else {
+        if (localFilename) {
+            titleTip = `常规磁盘物理文件:\nLoirs_Data/output/常规/${localFilename}.png`;
+        } else {
+            titleTip = item.prompt || '暂无物理磁盘文件名';
+        }
+    }
     let metaInfoHtml = '';
     if (!isRecognition && (item.type === 'image' || item.image || item.url)) {
         const ratioText = item.aspectRatio || item.ratio || '';
@@ -6327,7 +6394,7 @@ function createHistoryThumbnail(item) {
     }
     div.innerHTML = `
         <div class="history-thumb-column">
-            <div class="history-thumb-frame" onclick="event.stopPropagation(); ${isSuite ? `restoreSuiteFromHistory(${itemId})` : `openHistoryModal(${itemId})`}" style="cursor: pointer;" title="${localFilename ? `磁盘文件名: ${localFilename}` : (item.prompt || '暂无物理磁盘文件名')}">
+            <div class="history-thumb-frame" onclick="event.stopPropagation(); ${isSuite ? `restoreSuiteFromHistory(${itemId})` : `openHistoryModal(${itemId})`}" style="cursor: pointer;" title="${escapeAttr(titleTip)}">
                 <img src="${escapeAttr(getSafeImageSrc(imgSrc, 80, 80))}" class="history-item-img" loading="lazy" onerror="handleImageLoadError(this)">
                 ${typeBadge}
                 ${archiveBadge}

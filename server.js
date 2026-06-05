@@ -217,34 +217,47 @@ const server = http.createServer((req, res) => {
                         fs.mkdirSync(destDir, { recursive: true });
                     }
                     
-                    const timeStr = formatTimestamp(record.timestamp);
-                    let seqNum = getNextFileNumber(destDir);
+                    // 确定套图文件夹名称（支持断点续存，保持在同一套图任务目录下）
+                    let suiteFolderName = record.localFolderName;
+                    if (!suiteFolderName) {
+                        const timeStr = formatTimestamp(record.timestamp);
+                        const seqNum = getNextFileNumber(destDir);
+                        suiteFolderName = `${seqNum}_${timeStr}`;
+                        record.localFolderName = suiteFolderName;
+                    }
+                    
+                    const taskDir = path.join(destDir, suiteFolderName);
+                    if (!fs.existsSync(taskDir)) {
+                        fs.mkdirSync(taskDir, { recursive: true });
+                    }
                     
                     record.images.forEach((img) => {
-                        if (img && img.url && typeof img.url === 'string' && img.url.startsWith('data:image/')) {
-                            const base64Data = img.url.replace(/^data:image\/\w+;base64,/, "");
+                        const imgData = img.imageUrl || img.url;
+                        if (img && imgData && typeof imgData === 'string' && imgData.startsWith('data:image/')) {
+                            const base64Data = imgData.replace(/^data:image\/\w+;base64,/, "");
                             const buffer = Buffer.from(base64Data, 'base64');
                             
-                            const imgFilename = `${seqNum}_${timeStr}_slot${img.index || 1}.png`;
-                            const imgPath = path.join(destDir, imgFilename);
+                            const imgFilename = `slot${img.index || 1}.png`;
+                            const imgPath = path.join(taskDir, imgFilename);
                             
                             fs.writeFileSync(imgPath, buffer);
                             
-                            img.url = `/output/%E5%A5%97%E5%9B%BE/${imgFilename}`;
+                            // 更新相对路径 (URL 进行编码以防乱码)
+                            const localRelativePath = `/output/%E5%A5%97%E5%9B%BE/${encodeURIComponent(suiteFolderName)}/${imgFilename}`;
+                            img.imageUrl = localRelativePath;
+                            img.url = localRelativePath;
                             if (img.thumbnail && img.thumbnail.startsWith('data:image/')) {
-                                img.thumbnail = img.url;
+                                img.thumbnail = localRelativePath;
                             }
-                            
-                            const nextNum = parseInt(seqNum, 10) + 1;
-                            seqNum = String(nextNum).padStart(4, '0');
                         }
                     });
                     
-                    const firstValidImg = record.images.find(img => img.url && !img.url.startsWith('data:image/'));
+                    const firstValidImg = record.images.find(img => (img.imageUrl || img.url) && !(img.imageUrl || img.url).startsWith('data:image/'));
                     if (firstValidImg) {
-                        record.firstImage = firstValidImg.url;
-                        record.thumbnail = firstValidImg.url;
-                        record.url = firstValidImg.url;
+                        const firstUrl = firstValidImg.imageUrl || firstValidImg.url;
+                        record.firstImage = firstUrl;
+                        record.thumbnail = firstUrl;
+                        record.url = firstUrl;
                     }
                 }
                 
@@ -297,17 +310,18 @@ const server = http.createServer((req, res) => {
                 // 将记录写入历史数据库 history.json
                 const history = getHistory();
                 const existingIdx = history.findIndex(h => h.id === record.id);
+                let finalRecord = record;
                 if (existingIdx !== -1) {
                     // 合并现有记录与更新（支持增量更新）
                     history[existingIdx] = { ...history[existingIdx], ...record };
-                    record.url = history[existingIdx].url; // 保证返回的 url 依然存在
+                    finalRecord = history[existingIdx];
                 } else {
                     history.unshift(record); // 最新生成的排在最前面
                 }
                 saveHistory(history);
                 
                 res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
-                res.end(JSON.stringify({ success: true, url: record.url }));
+                res.end(JSON.stringify({ success: true, url: finalRecord.url, record: finalRecord }));
             } catch (e) {
                 console.error('❌ 保存本地图片失败:', e);
                 res.writeHead(500, { 'Content-Type': 'application/json' });
