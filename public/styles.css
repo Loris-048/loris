@@ -2309,7 +2309,8 @@
         .suite-collapse-toggle {
             display: flex !important;
             position: absolute;
-            top: -16px;
+            bottom: -16px;
+            top: auto;
             right: 20px;
             width: 32px;
             height: 32px;
@@ -2343,7 +2344,8 @@
             cursor: pointer;
         }
         .suite-composer.suite-collapsed .suite-collapse-toggle {
-            top: -40px !important;
+            top: 12px !important;
+            bottom: auto !important;
         }
         .suite-composer.suite-collapsed .suite-row,
         .suite-composer.suite-collapsed .suite-status-bar,
