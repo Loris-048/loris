@@ -1,12 +1,4 @@
 {
     "version": 2,
-    "outputDirectory": "public",
-    "functions": {
-        "api/proxy.js": {
-            "runtime": "edge"
-        },
-        "api/config.js": {
-            "runtime": "edge"
-        }
-    }
+    "outputDirectory": "public"
 }
