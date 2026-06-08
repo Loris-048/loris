@@ -102,6 +102,46 @@ function saveHistory(history) {
     fs.writeFileSync(getHistoryPath(), JSON.stringify(history, null, 4), 'utf8');
 }
 
+// 获取用户映射数据库 users.json 的物理路径
+function getUsersPath() {
+    return path.join(getStorageRoot(), 'users.json');
+}
+
+// 磁盘轻量用户数据读取
+function getUsers() {
+    ensureStorageDirs();
+    const usersPath = getUsersPath();
+    if (fs.existsSync(usersPath)) {
+        try {
+            return JSON.parse(fs.readFileSync(usersPath, 'utf8'));
+        } catch (e) {
+            console.error('⚠️ 读取 users.json 失败:', e);
+            return {};
+        }
+    }
+    return {};
+}
+
+// 磁盘轻量用户数据写入
+function saveUsers(users) {
+    ensureStorageDirs();
+    try {
+        fs.writeFileSync(getUsersPath(), JSON.stringify(users, null, 4), 'utf8');
+        return true;
+    } catch (e) {
+        console.error('⚠️ 写入 users.json 失败:', e);
+        return false;
+    }
+}
+
+// 判定当前请求是否来源于本机 (Localhost / Loopback)
+function isLocalRequest(req) {
+    const remoteAddress = req.socket.remoteAddress;
+    return remoteAddress === '127.0.0.1' || 
+           remoteAddress === '::1' || 
+           remoteAddress === '::ffff:127.0.0.1';
+}
+
 // 深度过滤 Windows/Linux 文件系统禁用字符，让文件夹名字安全无暇
 function sanitizeFolderName(name) {
     if (!name || !name.trim()) return '未命名对话';
@@ -151,6 +191,7 @@ const MIME_TYPES = {
     '.png': 'image/png',
     '.jpg': 'image/jpeg',
     '.jpeg': 'image/jpeg',
+    '.webp': 'image/webp',
     '.gif': 'image/gif',
     '.svg': 'image/svg+xml',
     '.ico': 'image/x-icon'
@@ -209,15 +250,111 @@ const server = http.createServer((req, res) => {
         res.end(JSON.stringify({
             status: "ok",
             mode: "server",
-            storagePath: getStorageRoot()
+            storagePath: getStorageRoot(),
+            isLocal: isLocalRequest(req)
         }));
         return;
     }
 
-    // 0.2 API: 获取物理磁盘历史数据库记录
-    if (pathname === '/api/history' && req.method === 'GET') {
+    // 0.15 API: 用户免密登记/改名，进行强校验与重名检测
+    if (pathname === '/api/register-user' && req.method === 'POST') {
+        let body = '';
+        req.on('data', chunk => {
+            body += chunk.toString();
+        });
+        req.on('end', () => {
+            try {
+                const data = JSON.parse(body);
+                const clientId = data.clientId ? data.clientId.trim() : '';
+                const username = data.username ? data.username.trim() : '';
+
+                if (!clientId) {
+                    res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+                    res.end(JSON.stringify({ success: false, error: '缺少设备指纹 ClientId' }));
+                    return;
+                }
+
+                if (!username) {
+                    res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+                    res.end(JSON.stringify({ success: false, error: '笔名不能为空' }));
+                    return;
+                }
+
+                // 1. 验证长度 (2-10 字符)
+                if (username.length < 2 || username.length > 10) {
+                    res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+                    res.end(JSON.stringify({ success: false, error: '笔名长度必须在 2 到 10 个字之间' }));
+                    return;
+                }
+
+                // 2. 拒绝纯数字
+                if (/^\d+$/.test(username)) {
+                    res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+                    res.end(JSON.stringify({ success: false, error: '笔名不能是纯数字，请换用有辨识度的名字' }));
+                    return;
+                }
+
+                const users = getUsers();
+
+                // 3. 检查重名 (必须是不同的 clientId)
+                const isDuplicate = Object.entries(users).some(([existingId, existingName]) => {
+                    return existingId !== clientId && existingName.toLowerCase() === username.toLowerCase();
+                });
+
+                if (isDuplicate) {
+                    res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+                    res.end(JSON.stringify({ success: false, error: `笔名【${username}】已被其他同事占用，请换个名字哦` }));
+                    return;
+                }
+
+                // 保存/更新映射
+                users[clientId] = username;
+                saveUsers(users);
+
+                res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+                res.end(JSON.stringify({ success: true, clientId, username }));
+            } catch (e) {
+                console.error('❌ 用户登记失败:', e);
+                res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8' });
+                res.end(JSON.stringify({ success: false, error: e.message }));
+            }
+        });
+        return;
+    }
+
+    // 0.16 API: 获取所有已注册的用户列表 (管理员专属)
+    if (pathname === '/api/get-users' && req.method === 'GET') {
+        const users = getUsers();
         res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
-        res.end(JSON.stringify(getHistory()));
+        res.end(JSON.stringify(users));
+        return;
+    }
+
+    // 0.2 API: 获取物理磁盘历史数据库记录 (支持多用户隔离与管理员过滤)
+    if (pathname === '/api/history' && req.method === 'GET') {
+        const isLocal = isLocalRequest(req);
+        const reqClientId = parsedUrl.query.clientId || '';
+        const filterClientId = parsedUrl.query.filterClientId || ''; // 管理员下拉选择过滤
+        
+        let history = getHistory();
+        
+        if (isLocal) {
+            // 本机超级管理员：支持按 clientId 筛选
+            if (filterClientId && filterClientId !== 'all') {
+                history = history.filter(h => h.clientId === filterClientId);
+            }
+            // 如果 filterClientId 为空或 'all'，则展示所有大杂烩记录
+        } else {
+            // 同事/局域网端：严格锁定展示自己的记录
+            if (reqClientId) {
+                history = history.filter(h => h.clientId === reqClientId);
+            } else {
+                history = []; // 没有携带设备指纹一律展示为空
+            }
+        }
+        
+        res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify(history));
         return;
     }
 
@@ -234,6 +371,23 @@ const server = http.createServer((req, res) => {
                     res.writeHead(400, { 'Content-Type': 'application/json' });
                     res.end(JSON.stringify({ error: 'Missing id' }));
                     return;
+                }
+                
+                // 安全注入多用户标识
+                const isLocal = isLocalRequest(req);
+                if (isLocal) {
+                    record.clientId = record.clientId || 'local_admin';
+                    record.username = record.username || '本机管理员';
+                } else {
+                    // 同事端必须要设备指纹，如果没有，尝试在服务端通过 users.json 查取
+                    record.clientId = record.clientId || '';
+                    if (record.clientId) {
+                        const users = getUsers();
+                        record.username = users[record.clientId] || '局域网用户';
+                    } else {
+                        record.clientId = 'unknown';
+                        record.username = '未知设备';
+                    }
                 }
                 
                 // 确定套图和普通模式
@@ -435,15 +589,26 @@ const server = http.createServer((req, res) => {
         return;
     }
 
-    // 0.5 API: 删除/清空历史记录并智能同步物理删除磁盘图片
+    // 0.5 API: 删除/清空历史记录并智能同步物理删除磁盘图片 (带有严格多用户权限检验)
     if (pathname === '/api/history' && req.method === 'DELETE') {
+        const isLocal = isLocalRequest(req);
+        const reqClientId = parsedUrl.query.clientId || '';
         const recordId = parsedUrl.query.id;
         let history = getHistory();
         
         if (recordId) {
-            const record = history.find(h => h.id === recordId);
+            // 单个删除
+            const record = history.find(h => String(h.id) === String(recordId));
             if (record) {
-                // 根据 URL 还原本地物理图片地址并将其删除
+                // 权限校验：如果是局域网同事，只能删除属于自己 clientId 的记录
+                if (!isLocal && record.clientId !== reqClientId) {
+                    res.writeHead(403, { 'Content-Type': 'application/json; charset=utf-8' });
+                    res.end(JSON.stringify({ success: false, error: '权限不足：您不能删除其他同事的作品' }));
+                    return;
+                }
+                
+                // 执行物理文件清理 (如果是套图，清理整个套图目录)
+                // 1. 常规模式物理文件清理
                 let fileRelPath = record.url;
                 if (fileRelPath && fileRelPath.startsWith('/output/')) {
                     const relativePath = decodeURIComponent(fileRelPath.substring(8));
@@ -451,48 +616,125 @@ const server = http.createServer((req, res) => {
                     const filePath = path.join(getStorageRoot(), 'output', safeRelativePath);
                     if (fs.existsSync(filePath)) {
                         try {
-                            fs.unlinkSync(filePath);
+                            const stat = fs.statSync(filePath);
+                            if (stat.isFile()) {
+                                fs.unlinkSync(filePath);
+                            }
                         } catch (e) {
                             console.error('⚠️ 删除本地物理图片失败:', filePath, e);
                         }
                     }
                 }
+                
+                // 2. 套图目录递归物理删除
+                if ((record.mode === 'suite' || record.type === 'suite') && record.localFolderName) {
+                    const suiteDir = path.join(getStorageRoot(), 'output', '套图', record.localFolderName);
+                    if (fs.existsSync(suiteDir)) {
+                        try {
+                            fs.rmSync(suiteDir, { recursive: true, force: true });
+                        } catch (e) {
+                            console.error('⚠️ 删除套图物理文件夹失败:', suiteDir, e);
+                        }
+                    }
+                }
+                
+                // 3. 关联参考图物理删除
+                if (Array.isArray(record.fileData)) {
+                    record.fileData.forEach(file => {
+                        if (file && file.data && file.data.startsWith('/output/')) {
+                            const relPath = decodeURIComponent(file.data.substring(8));
+                            const safeRel = path.normalize(relPath).replace(/^(\.\.[\/\\])+/, '');
+                            const refPath = path.join(getStorageRoot(), 'output', safeRel);
+                            if (fs.existsSync(refPath)) {
+                                try { fs.unlinkSync(refPath); } catch (_) {}
+                            }
+                        }
+                    });
+                }
+                
                 // 从数据库中剔除
-                history = history.filter(h => h.id !== recordId);
+                history = history.filter(h => String(h.id) !== String(recordId));
                 saveHistory(history);
             }
             res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
             res.end(JSON.stringify({ success: true }));
         } else {
-            // 全盘清空
-            saveHistory([]);
-            // 递归清理物理生图目录下的所有常规/套图/对话文件
-            const root = getStorageRoot();
-            const subdirs = [
-                path.join(root, 'output', '常规'),
-                path.join(root, 'output', '套图'),
-                path.join(root, 'output', '对话')
-            ];
-            
-            subdirs.forEach(dir => {
-                if (fs.existsSync(dir)) {
-                    try {
-                        const items = fs.readdirSync(dir);
-                        items.forEach(item => {
-                            const itemPath = path.join(dir, item);
-                            const stat = fs.statSync(itemPath);
-                            if (stat.isDirectory()) {
-                                // 递归删除对话子文件夹
-                                fs.rmSync(itemPath, { recursive: true, force: true });
-                            } else {
-                                fs.unlinkSync(itemPath);
+            // 批量/全盘清理
+            if (isLocal) {
+                // 本机超级管理员：彻底清空所有人历史 + 所有物理文件
+                saveHistory([]);
+                const root = getStorageRoot();
+                const subdirs = [
+                    path.join(root, 'output', '常规'),
+                    path.join(root, 'output', '套图'),
+                    path.join(root, 'output', '对话')
+                ];
+                
+                subdirs.forEach(dir => {
+                    if (fs.existsSync(dir)) {
+                        try {
+                            const items = fs.readdirSync(dir);
+                            items.forEach(item => {
+                                const itemPath = path.join(dir, item);
+                                const stat = fs.statSync(itemPath);
+                                if (stat.isDirectory()) {
+                                    fs.rmSync(itemPath, { recursive: true, force: true });
+                                } else {
+                                    fs.unlinkSync(itemPath);
+                                }
+                            });
+                        } catch (e) {
+                            console.error('⚠️ 清理存储子目录失败:', dir, e);
+                        }
+                    }
+                });
+            } else {
+                // 局域网同事：仅清空属于自己 clientId 的历史记录 + 对应物理文件
+                if (!reqClientId) {
+                    res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+                    res.end(JSON.stringify({ success: false, error: '缺少设备指纹' }));
+                    return;
+                }
+                
+                const myRecords = history.filter(h => h.clientId === reqClientId);
+                myRecords.forEach(record => {
+                    // 删除主文件
+                    let fileRelPath = record.url;
+                    if (fileRelPath && fileRelPath.startsWith('/output/')) {
+                        const relativePath = decodeURIComponent(fileRelPath.substring(8));
+                        const safeRelativePath = path.normalize(relativePath).replace(/^(\.\.[\/\\])+/, '');
+                        const filePath = path.join(getStorageRoot(), 'output', safeRelativePath);
+                        if (fs.existsSync(filePath)) {
+                            try { fs.unlinkSync(filePath); } catch (_) {}
+                        }
+                    }
+                    // 删除套图文件夹
+                    if ((record.mode === 'suite' || record.type === 'suite') && record.localFolderName) {
+                        const suiteDir = path.join(getStorageRoot(), 'output', '套图', record.localFolderName);
+                        if (fs.existsSync(suiteDir)) {
+                            try { fs.rmSync(suiteDir, { recursive: true, force: true }); } catch (_) {}
+                        }
+                    }
+                    // 删除参考图
+                    if (Array.isArray(record.fileData)) {
+                        record.fileData.forEach(file => {
+                            if (file && file.data && file.data.startsWith('/output/')) {
+                                const relPath = decodeURIComponent(file.data.substring(8));
+                                const safeRel = path.normalize(relPath).replace(/^(\.\.[\/\\])+/, '');
+                                const refPath = path.join(getStorageRoot(), 'output', safeRel);
+                                if (fs.existsSync(refPath)) {
+                                    try { fs.unlinkSync(refPath); } catch (_) {}
+                                }
                             }
                         });
-                    } catch (e) {
-                        console.error('⚠️ 清理存储子目录失败:', dir, e);
                     }
-                }
-            });
+                });
+                
+                // 过滤掉当前用户的记录，保留其他人的记录
+                history = history.filter(h => h.clientId !== reqClientId);
+                saveHistory(history);
+            }
+            
             res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
             res.end(JSON.stringify({ success: true }));
         }

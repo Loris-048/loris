@@ -689,7 +689,8 @@ function stripHeavyFields(item) {
 async function getHistoryItemById(id) {
     if (StorageAdapter.isServer()) {
         try {
-            const res = await fetch('/api/history');
+            const reqClientId = localStorage.getItem('clientId') || '';
+            const res = await fetch(`/api/history?clientId=${encodeURIComponent(reqClientId)}`);
             const history = await res.json();
             const item = history.find(h => String(h.id) === String(id));
             return item || null;
@@ -996,6 +997,8 @@ async function storeItem(item, callback) {
                 steps: item.steps || 20,
                 scale: item.scale || 7,
                 timestamp: item.timestamp || Date.now(),
+                clientId: localStorage.getItem('clientId') || '',
+                username: localStorage.getItem('username') || '',
                 mode: saveMode,
                 chatName: chatTitle,
                 imageData: imageToSave
@@ -1139,7 +1142,8 @@ async function deleteFromDB(id, element) {
     if(!confirm("确定删除这张图片吗？")) return;
     if (StorageAdapter.isServer()) {
         try {
-            const res = await fetch(`/api/history?id=${id}`, { method: 'DELETE' });
+            const reqClientId = localStorage.getItem('clientId') || '';
+            const res = await fetch(`/api/history?id=${id}&clientId=${encodeURIComponent(reqClientId)}`, { method: 'DELETE' });
             const data = await res.json();
             if (data.success) {
                 if (element) {
@@ -1151,6 +1155,8 @@ async function deleteFromDB(id, element) {
                 loadHistoryPage(historyCurrentPage);
                 showToast('已删除');
                 return;
+            } else {
+                alert('⚠️ 删除失败：' + (data.error || '权限不足'));
             }
         } catch (e) {
             console.error('❌ StorageAdapter 删除历史记录失败:', e);
@@ -1178,7 +1184,13 @@ async function deleteResultCard(btn) {
     const doDelete = async () => {
         if (StorageAdapter.isServer() && historyId) {
             try {
-                await fetch(`/api/history?id=${historyId}`, { method: 'DELETE' });
+                const reqClientId = localStorage.getItem('clientId') || '';
+                const res = await fetch(`/api/history?id=${historyId}&clientId=${encodeURIComponent(reqClientId)}`, { method: 'DELETE' });
+                const data = await res.json();
+                if (!data.success) {
+                    alert('⚠️ 删除失败：' + (data.error || '权限不足'));
+                    return;
+                }
                 loadHistoryPage(historyCurrentPage);
             } catch (e) {
                 console.error('❌ StorageAdapter 删除卡片文件失败:', e);
@@ -1204,7 +1216,8 @@ async function clearAllHistoryDB() {
     if(!confirm("这将清空所有本地保存的历史记录，且无法恢复！确定吗？")) return;
     if (StorageAdapter.isServer()) {
         try {
-            const res = await fetch('/api/history', { method: 'DELETE' });
+            const reqClientId = localStorage.getItem('clientId') || '';
+            const res = await fetch(`/api/history?clientId=${encodeURIComponent(reqClientId)}`, { method: 'DELETE' });
             const data = await res.json();
             if (data.success) {
                 historyAllItems = [];
@@ -1214,6 +1227,8 @@ async function clearAllHistoryDB() {
                 renderHistoryPage();
                 showToast('已成功清空所有历史');
                 return;
+            } else {
+                alert('⚠️ 清空失败：' + (data.error || '服务器拒绝'));
             }
         } catch (e) {
             console.error('❌ StorageAdapter 清空历史失败:', e);
@@ -1245,7 +1260,11 @@ async function loadHistoryPage(page = historyCurrentPage) {
     }
     if (StorageAdapter.isServer()) {
         try {
-            const res = await fetch('/api/history');
+            const reqClientId = localStorage.getItem('clientId') || '';
+            const adminFilterSelect = document.getElementById('adminUserFilter');
+            const adminFilterVal = adminFilterSelect ? adminFilterSelect.value : 'all';
+            const urlWithParams = `/api/history?clientId=${encodeURIComponent(reqClientId)}&filterClientId=${encodeURIComponent(adminFilterVal)}`;
+            const res = await fetch(urlWithParams);
             const allServerItems = await res.json();
             const totalCount = allServerItems.length;
             historyTotalPages = Math.ceil(totalCount / historyPageSize) || 1;
@@ -1420,6 +1439,7 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             await StorageAdapter.init();
             if (StorageAdapter.isServer()) {
+                await checkUserRegistration();
                 loadHistoryToSidebar();
             }
         } catch (_) {}
@@ -2822,6 +2842,8 @@ async function submitChatImageTask(chat, userMessage, intent) {
                     type: 'image',
                     prompt: intent?.prompt || '',
                     timestamp: Date.now(),
+                    clientId: localStorage.getItem('clientId') || '',
+                    username: localStorage.getItem('username') || '',
                     mode: 'chat',
                     chatName: chat?.title || '未命名对话',
                     imageData: cleanedUrl,
@@ -10792,6 +10814,341 @@ function safeSetSelect(selectEl, value, defaultValue) {
         };
         window.__suiteRestoreFilesFromHistory = restoreSuiteFilesFromHistory;
         updateSuiteGridDensity();
+    }
+    async function checkUserRegistration() {
+        if (!StorageAdapter.isServer()) return;
+        let clientId = localStorage.getItem('clientId');
+        if (!clientId) {
+            clientId = 'cli_' + Math.random().toString(36).substring(2, 11) + Date.now().toString(36);
+            localStorage.setItem('clientId', clientId);
+        }
+        try {
+            const statusRes = await fetch('/api/status');
+            const statusData = await statusRes.json();
+            if (statusData.isLocal) {
+                localStorage.setItem('clientId', 'local_admin');
+                localStorage.setItem('username', '本机管理员');
+                await fetch('/api/register-user', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ clientId: 'local_admin', username: '本机管理员' })
+                });
+                renderAdminUserFilter();
+                return;
+            }
+            let username = localStorage.getItem('username');
+            if (username && username !== '本机管理员') {
+                const regRes = await fetch('/api/register-user', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ clientId, username })
+                });
+                const regData = await regRes.json();
+                if (regData.success) {
+                    renderUserTagInHeader(username);
+                    return;
+                } else {
+                    localStorage.removeItem('username');
+                }
+            }
+            showRegistrationModal(clientId);
+        } catch (e) {
+            console.error('❌ 初始化多用户状态失败:', e);
+        }
+    }
+    function showRegistrationModal(clientId) {
+        if (document.getElementById('loisRegisterModal')) return;
+        const modal = document.createElement('div');
+        modal.id = 'loisRegisterModal';
+        modal.style = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(15, 23, 42, 0.7);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 999999;
+            animation: fadeIn 0.3s ease;
+        `;
+        const card = document.createElement('div');
+        card.style = `
+            background: var(--bg-card, #1f2937);
+            border: 1px solid var(--border, #374151);
+            border-radius: 16px;
+            padding: 30px;
+            width: 90%;
+            max-width: 400px;
+            box-shadow: 0 12px 36px rgba(0, 0, 0, 0.4);
+            color: var(--text-main, #f9fafb);
+            text-align: center;
+            transform: scale(0.95);
+            animation: scaleUp 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+        `;
+        if (!document.getElementById('loisRegisterAnims')) {
+            const style = document.createElement('style');
+            style.id = 'loisRegisterAnims';
+            style.innerHTML = `
+                @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+                @keyframes scaleUp { to { transform: scale(1); } }
+            `;
+            document.head.appendChild(style);
+        }
+        card.innerHTML = `
+            <div style="font-size: 36px; margin-bottom: 15px; color: var(--primary, #6366f1);">
+                <i class="fas fa-palette"></i>
+            </div>
+            <h3 style="font-size: 20px; font-weight: 700; margin-bottom: 12px; color: var(--text-main);">🎨 欢迎使用 Loirs 绘图终端</h3>
+            <p style="font-size: 13px; color: var(--text-sub, #9ca3af); line-height: 1.6; margin-bottom: 22px; text-align: left; padding: 0 10px;">
+                首次加入平台，请输入您的<b>名字作为生图笔名</b>：这有利于同事之间识别作品所有人，防止劳动成果被误删，也用来实现您专属的历史记录隔离。
+            </p>
+            <div style="position: relative; margin-bottom: 15px;">
+                <input type="text" id="loisRegInput" placeholder="请输入您的真实姓名或笔名" style="
+                    width: 100%;
+                    padding: 12px 16px;
+                    border-radius: 8px;
+                    background: var(--bg-body, #111827);
+                    border: 1px solid var(--border, #374151);
+                    color: var(--text-main, #f9fafb);
+                    font-size: 14px;
+                    outline: none;
+                    box-sizing: border-box;
+                    text-align: center;
+                    transition: border-color 0.2s;
+                " maxlength="10" />
+            </div>
+            <div id="loisRegError" style="color: #f87171; font-size: 12px; margin-bottom: 15px; min-height: 18px; display: none;"></div>
+            <button id="loisRegBtn" style="
+                width: 100%;
+                padding: 12px;
+                border: none;
+                border-radius: 8px;
+                background: linear-gradient(135deg, var(--primary, #6366f1), var(--primary-hover, #4f46e5));
+                color: white;
+                font-size: 14px;
+                font-weight: 600;
+                cursor: pointer;
+                box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+                transition: transform 0.1s, opacity 0.2s;
+            ">登记并进入</button>
+        `;
+        modal.appendChild(card);
+        document.body.appendChild(modal);
+        const input = card.querySelector('#loisRegInput');
+        const btn = card.querySelector('#loisRegBtn');
+        const err = card.querySelector('#loisRegError');
+        input.focus();
+        input.addEventListener('input', () => {
+            err.style.display = 'none';
+            input.style.borderColor = 'var(--border)';
+        });
+        const submitReg = async () => {
+            const username = input.value.trim();
+            if (!username) {
+                err.innerText = '⚠️ 笔名不能为空';
+                err.style.display = 'block';
+                input.style.borderColor = '#f87171';
+                return;
+            }
+            if (username.length < 2 || username.length > 10) {
+                err.innerText = '⚠️ 长度必须在 2 到 10 个字之间';
+                err.style.display = 'block';
+                input.style.borderColor = '#f87171';
+                return;
+            }
+            if (/^\d+$/.test(username)) {
+                err.innerText = '⚠️ 笔名不能是纯数字，请使用汉字或英文昵称';
+                err.style.display = 'block';
+                input.style.borderColor = '#f87171';
+                return;
+            }
+            btn.disabled = true;
+            btn.innerText = '登记中...';
+            try {
+                const res = await fetch('/api/register-user', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ clientId, username })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    localStorage.setItem('username', username);
+                    modal.remove();
+                    renderUserTagInHeader(username);
+                    loadHistoryPage(1);
+                } else {
+                    err.innerText = '⚠️ ' + (data.error || '登记失败，请重试');
+                    err.style.display = 'block';
+                    input.style.borderColor = '#f87171';
+                    btn.disabled = false;
+                    btn.innerText = '登记并进入';
+                }
+            } catch (e) {
+                err.innerText = '❌ 无法连接到本地服务器';
+                err.style.display = 'block';
+                btn.disabled = false;
+                btn.innerText = '登记并进入';
+            }
+        };
+        btn.addEventListener('click', submitReg);
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') submitReg();
+        });
+    }
+    function showRenameModal() {
+        const clientId = localStorage.getItem('clientId');
+        if (!clientId || clientId === 'local_admin') return;
+        const currentName = localStorage.getItem('username') || '';
+        const newName = prompt('📝 请输入您要修改的绘图笔名：\n(2-10个字，不能为纯数字且不能与他人重复)', currentName);
+        if (newName === null) return;
+        const cleaned = newName.trim();
+        if (!cleaned) {
+            alert('笔名不能为空！');
+            return;
+        }
+        if (cleaned === currentName) return;
+        if (cleaned.length < 2 || cleaned.length > 10) {
+            alert('笔名长度必须在 2 到 10 个字之间！');
+            return;
+        }
+        if (/^\d+$/.test(cleaned)) {
+            alert('笔名不能是纯数字！');
+            return;
+        }
+        fetch('/api/register-user', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ clientId, username: cleaned })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                localStorage.setItem('username', cleaned);
+                renderUserTagInHeader(cleaned);
+                alert('🎉 笔名修改成功！新署名已生效！');
+                loadHistoryPage(1);
+            } else {
+                alert('❌ 修改失败：' + (data.error || '重名校验未通过'));
+            }
+        })
+        .catch(() => {
+            alert('❌ 无法连接到服务器');
+        });
+    }
+    function renderUserTagInHeader(username) {
+        let badgeArea = document.getElementById('userBadgeArea');
+        const settingsArea = document.querySelector('.settings-area');
+        const themeBtn = document.getElementById('themeBtn');
+        if (!settingsArea || !themeBtn) return;
+        if (!badgeArea) {
+            badgeArea = document.createElement('div');
+            badgeArea.id = 'userBadgeArea';
+            badgeArea.style = 'display: inline-flex; align-items: center; gap: 8px; margin-right: 10px; vertical-align: middle;';
+            settingsArea.insertBefore(badgeArea, themeBtn);
+        }
+        badgeArea.innerHTML = `
+            <span id="userPenName" style="
+                font-size: 13px;
+                color: var(--text-main);
+                display: inline-flex;
+                align-items: center;
+                gap: 5px;
+                cursor: pointer;
+                padding: 5px 10px;
+                border-radius: 8px;
+                background: var(--bg-card);
+                border: 1px solid var(--border);
+                box-shadow: var(--shadow-sm);
+                font-weight: 500;
+                transition: all 0.2s;
+            " title="点击修改笔名">
+                <i class="fas fa-user-edit" style="color: var(--primary); font-size: 11px;"></i>
+                ${username}
+            </span>
+        `;
+        const penNameEl = badgeArea.querySelector('#userPenName');
+        if (penNameEl) {
+            penNameEl.addEventListener('click', showRenameModal);
+            penNameEl.addEventListener('mouseenter', () => {
+                penNameEl.style.borderColor = 'var(--primary)';
+            });
+            penNameEl.addEventListener('mouseleave', () => {
+                penNameEl.style.borderColor = 'var(--border)';
+            });
+        }
+    }
+    function renderAdminUserFilter() {
+        let badgeArea = document.getElementById('userBadgeArea');
+        const settingsArea = document.querySelector('.settings-area');
+        const themeBtn = document.getElementById('themeBtn');
+        if (!settingsArea || !themeBtn) return;
+        if (!badgeArea) {
+            badgeArea = document.createElement('div');
+            badgeArea.id = 'userBadgeArea';
+            badgeArea.style = 'display: inline-flex; align-items: center; gap: 8px; margin-right: 10px; vertical-align: middle;';
+            settingsArea.insertBefore(badgeArea, themeBtn);
+        }
+        badgeArea.innerHTML = `
+            <span id="userPenName" style="
+                font-size: 13px;
+                color: var(--text-main);
+                display: inline-flex;
+                align-items: center;
+                gap: 5px;
+                padding: 5px 10px;
+                border-radius: 8px;
+                background: var(--bg-card);
+                border: 1px solid var(--border);
+                box-shadow: var(--shadow-sm);
+                font-weight: 600;
+            " title="超级管理员，掌控全局">
+                <i class="fas fa-user-shield" style="color: #e0a82e; font-size: 11px;"></i>
+                本机管理员
+            </span>
+            <select id="adminUserFilter" style="
+                font-size: 13px;
+                background: var(--bg-card);
+                color: var(--text-main);
+                border: 1px solid var(--border);
+                padding: 5px 10px;
+                border-radius: 8px;
+                outline: none;
+                cursor: pointer;
+                box-shadow: var(--shadow-sm);
+                font-weight: 500;
+                transition: border-color 0.2s;
+            " title="按同事筛选历史记录">
+                <option value="all">👥 所有人 (全部历史)</option>
+                <option value="local_admin">👑 本机管理员</option>
+            </select>
+        `;
+        fetch('/api/get-users')
+            .then(res => res.json())
+            .then(users => {
+                const select = badgeArea.querySelector('#adminUserFilter');
+                if (select) {
+                    select.innerHTML = `
+                        <option value="all">👥 所有人 (全部历史)</option>
+                        <option value="local_admin">👑 本机管理员</option>
+                    `;
+                    Object.entries(users).forEach(([uid, name]) => {
+                        if (uid !== 'local_admin') {
+                            const opt = document.createElement('option');
+                            opt.value = uid;
+                            opt.innerText = `👤 ${name}`;
+                            select.appendChild(opt);
+                        }
+                    });
+                    select.addEventListener('change', () => {
+                        loadHistoryPage(1);
+                    });
+                }
+            })
+            .catch(e => console.error('❌ 加载花名册失败:', e));
     }
     function init() {
         ensureStyles();
