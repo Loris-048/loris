@@ -34,9 +34,15 @@
         };
 
         try {
-            return await originalFetch('/api/proxy', proxyOptions);
+            const isVercelOnline = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1' && window.location.protocol !== 'file:';
+            const customProxy = localStorage.getItem('online_proxy_url') || '';
+            const proxyEndpoint = isVercelOnline && customProxy
+                ? customProxy.replace(/\/$/, '')
+                : '/api/proxy';
+                
+            return await originalFetch(proxyEndpoint, proxyOptions);
         } catch (e) {
-            console.warn('⚠️ 本地代理服务请求失败，正在尝试直接连接官方接口:', e);
+            console.warn('⚠️ 代理服务请求失败，正在尝试直接连接官方接口:', e);
             return originalFetch(url, options);
         }
     };
@@ -1298,6 +1304,21 @@ document.addEventListener('DOMContentLoaded', () => {
     if (modelscopeTokenEl) {
         modelscopeTokenEl.addEventListener('input', (e) => {
             localStorage.setItem('modelscope_token', e.target.value.trim());
+        });
+    }
+
+    // 加载并保存 Cloudflare Workers 免费高速代理 URL
+    const savedOnlineProxyUrl = localStorage.getItem('online_proxy_url');
+    if (savedOnlineProxyUrl) {
+        const onlineProxyUrlInput = document.getElementById('onlineProxyUrl');
+        if (onlineProxyUrlInput) {
+            onlineProxyUrlInput.value = savedOnlineProxyUrl;
+        }
+    }
+    const onlineProxyUrlEl = document.getElementById('onlineProxyUrl');
+    if (onlineProxyUrlEl) {
+        onlineProxyUrlEl.addEventListener('input', (e) => {
+            localStorage.setItem('online_proxy_url', e.target.value.trim());
         });
     }
 
