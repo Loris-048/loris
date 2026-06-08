@@ -11,6 +11,8 @@
 # 忽略临时保存的 Flux/ComfyUI JSON 工作流
 *.json
 !config.json
+!package.json
+!vercel.json
 
 # 🔑 极度关键：防止将本地带有您个人 Token 的密钥文件提交到 Git 记录中
 config.json

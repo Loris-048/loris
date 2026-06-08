@@ -1,0 +1,12 @@
+{
+    "version": 2,
+    "outputDirectory": "public",
+    "functions": {
+        "api/proxy.js": {
+            "maxDuration": 30
+        },
+        "api/config.js": {
+            "maxDuration": 10
+        }
+    }
+}
