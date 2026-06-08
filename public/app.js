@@ -12432,7 +12432,10 @@ function safeSetSelect(selectEl, value, defaultValue) {
 
     // ========== 多用户免密登记与安全隔离前端逻辑 ==========
     async function checkUserRegistration() {
-        if (!StorageAdapter.isServer()) return;
+        if (!StorageAdapter.isServer()) {
+            console.log('🔌 [Loirs Multi-User]: 处于 IndexedDB 离线存储模式，跳过局域网多用户初始化。');
+            return;
+        }
 
         // 1. 初始化 Client ID
         let clientId = localStorage.getItem('clientId');
@@ -12440,31 +12443,37 @@ function safeSetSelect(selectEl, value, defaultValue) {
             clientId = 'cli_' + Math.random().toString(36).substring(2, 11) + Date.now().toString(36);
             localStorage.setItem('clientId', clientId);
         }
+        console.log(`🔌 [Loirs Multi-User]: 当前设备指纹 ClientId 为: "${clientId}"`);
 
         try {
-            // 2. 嗅探本机状态
+            console.log('🔌 [Loirs Multi-User]: 正在向后端嗅探本机 IP 归属状态...');
             const statusRes = await fetch('/api/status');
             const statusData = await statusRes.json();
+            console.log('🔌 [Loirs Multi-User]: 后端嗅探状态成功，结果为:', statusData);
             
             if (statusData.isLocal) {
-                // 本机管理员：静默注册
+                console.log('👑 [Loirs Multi-User]: 本机被认定为【超级管理员】，执行静默配置并秒级注入筛选。');
                 localStorage.setItem('clientId', 'local_admin');
                 localStorage.setItem('username', '本机管理员');
-                // 向后端登记，确保 users.json 中有记录
-                await fetch('/api/register-user', {
+                
+                // 100% 优先、无延迟地去渲染管理员专属历史过滤下拉框（不等待网络，解耦防卡死）
+                renderAdminUserFilter();
+
+                // 异步在 users.json 中登记，确保花名册正常，不阻塞前台渲染
+                fetch('/api/register-user', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ clientId: 'local_admin', username: '本机管理员' })
-                });
-                // 渲染管理员专属的历史过滤
-                renderAdminUserFilter();
+                }).catch(e => console.error('👑 管理员异步登记失败:', e));
+                
                 return;
             }
 
             // 3. 局域网同事：检查是否有已存的有效笔名
             let username = localStorage.getItem('username');
+            console.log(`👤 [Loirs Multi-User]: 本地保存的笔名为: "${username}"`);
             if (username && username !== '本机管理员') {
-                // 向后端验证此名字是否仍有效且不与他人冲突
+                console.log('👤 [Loirs Multi-User]: 正在向服务器校验该笔名是否仍可合法通行...');
                 const regRes = await fetch('/api/register-user', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -12472,16 +12481,17 @@ function safeSetSelect(selectEl, value, defaultValue) {
                 });
                 const regData = await regRes.json();
                 if (regData.success) {
-                    // 有效名字，正常通行
+                    console.log('👤 [Loirs Multi-User]: 笔名验证成功，进入抽屉头部渲染流程。');
                     renderUserTagInHeader(username);
                     return;
                 } else {
-                    // 冲突或无效名字，清除缓存重新登记
+                    console.log('⚠️ [Loirs Multi-User]: 笔名失效或重名被占领，擦除缓存准备重新登记。');
                     localStorage.removeItem('username');
                 }
             }
 
             // 4. 需要拉起必填登记窗
+            console.log('🔒 [Loirs Multi-User]: 需要强力拉起免密名字登记弹窗。');
             showRegistrationModal(clientId);
         } catch (e) {
             console.error('❌ 初始化多用户状态失败:', e);
@@ -12692,40 +12702,56 @@ function safeSetSelect(selectEl, value, defaultValue) {
     }
 
     function renderUserTagInHeader(username) {
-        const drawerHeader = document.querySelector('.drawer-header');
-        const closeBtn = document.querySelector('.close-drawer');
-        if (drawerHeader && closeBtn) {
-            let badge = document.getElementById('colleaguePenNameBadge');
-            if (!badge) {
-                badge = document.createElement('span');
-                badge.id = 'colleaguePenNameBadge';
-                badge.style = `
-                    font-size: 11px;
-                    color: var(--text-sub, #9ca3af);
-                    background: var(--bg-card, #1f2937);
-                    border: 1px solid var(--border, #374151);
-                    padding: 4px 8px;
-                    border-radius: 6px;
-                    cursor: pointer;
-                    margin-left: auto;
-                    margin-right: 10px;
-                    display: inline-flex;
-                    align-items: center;
-                    gap: 4px;
-                    font-weight: 500;
-                    box-shadow: var(--shadow-sm);
-                    transition: border-color 0.2s;
-                `;
-                drawerHeader.insertBefore(badge, closeBtn);
+        console.log(`👤 [Loirs Multi-User]: renderUserTagInHeader 被调用，待渲染笔名: "${username}"。启动 DOM 轮询探测...`);
+        let attempts = 0;
+        const interval = setInterval(() => {
+            attempts++;
+            const drawerHeader = document.querySelector('.drawer-header');
+            const closeBtn = document.querySelector('.close-drawer');
+            
+            if (drawerHeader && closeBtn) {
+                clearInterval(interval);
+                console.log('👤 [Loirs Multi-User]: 轮询成功：成功捕捉到历史侧边栏标题节点！正在向侧边栏头部注入笔名徽章...');
+                
+                let badge = document.getElementById('colleaguePenNameBadge');
+                if (!badge) {
+                    badge = document.createElement('span');
+                    badge.id = 'colleaguePenNameBadge';
+                    badge.style = `
+                        font-size: 11px;
+                        color: var(--text-sub, #9ca3af);
+                        background: var(--bg-card, #1f2937);
+                        border: 1px solid var(--border, #374151);
+                        padding: 4px 8px;
+                        border-radius: 6px;
+                        cursor: pointer;
+                        margin-left: auto;
+                        margin-right: 10px;
+                        display: inline-flex;
+                        align-items: center;
+                        gap: 4px;
+                        font-weight: 500;
+                        box-shadow: var(--shadow-sm);
+                        transition: border-color 0.2s;
+                        z-index: 10;
+                    `;
+                    drawerHeader.insertBefore(badge, closeBtn);
+                }
+                badge.innerHTML = `<i class="fas fa-user-edit" style="color: var(--primary);"></i> 笔名: ${username}`;
+                
+                badge.removeEventListener('click', showRenameModal);
+                badge.addEventListener('click', showRenameModal);
+                
+                badge.addEventListener('mouseenter', () => { badge.style.borderColor = 'var(--primary)'; });
+                badge.addEventListener('mouseleave', () => { badge.style.borderColor = 'var(--border)'; });
+                return;
             }
-            badge.innerHTML = `<i class="fas fa-user-edit" style="color: var(--primary);"></i> 笔名: ${username}`;
             
-            badge.removeEventListener('click', showRenameModal);
-            badge.addEventListener('click', showRenameModal);
-            
-            badge.addEventListener('mouseenter', () => { badge.style.borderColor = 'var(--primary)'; });
-            badge.addEventListener('mouseleave', () => { badge.style.borderColor = 'var(--border)'; });
-        }
+            if (attempts > 50) {
+                clearInterval(interval);
+                console.error('❌ [Loirs Multi-User]: 轮询 5 秒（50次）超时，未能找到历史侧边栏头部 .drawer-header 元素！');
+            }
+        }, 100);
     }
 
     function handleAdminFilterChange() {
@@ -12733,55 +12759,72 @@ function safeSetSelect(selectEl, value, defaultValue) {
     }
 
     function renderAdminUserFilter() {
-        // 在右侧滑出的「生成历史」抽屉标题栏中，注入“所有人/同事”筛选下拉框
-        const drawerHeader = document.querySelector('.drawer-header');
-        const closeBtn = document.querySelector('.close-drawer');
-        if (drawerHeader && closeBtn) {
-            let select = document.getElementById('adminUserFilter');
-            if (!select) {
-                select = document.createElement('select');
-                select.id = 'adminUserFilter';
-                select.style = `
-                    font-size: 11px;
-                    background: var(--bg-card, #1f2937);
-                    color: var(--text-main, #f9fafb);
-                    border: 1px solid var(--border, #374151);
-                    padding: 4px 8px;
-                    border-radius: 6px;
-                    outline: none;
-                    cursor: pointer;
-                    margin-left: auto;
-                    margin-right: 10px;
-                    font-weight: 500;
-                    box-shadow: var(--shadow-sm);
-                    max-width: 130px;
-                `;
-                drawerHeader.insertBefore(select, closeBtn);
-            }
-
-            // 异步获取当前已登记的花名册，装填到筛选下拉框中
-            fetch('/api/get-users')
-                .then(res => res.json())
-                .then(users => {
-                    select.innerHTML = `
-                        <option value="all">👥 所有人</option>
-                        <option value="local_admin">👑 我自己</option>
+        console.log('👑 [Loirs Multi-User]: renderAdminUserFilter 被调用，超级管理员专属。启动 DOM 轮询探测...');
+        let attempts = 0;
+        const interval = setInterval(() => {
+            attempts++;
+            const drawerHeader = document.querySelector('.drawer-header');
+            const closeBtn = document.querySelector('.close-drawer');
+            
+            if (drawerHeader && closeBtn) {
+                clearInterval(interval);
+                console.log('👑 [Loirs Multi-User]: 轮询成功：成功捕捉到历史侧边栏标题节点！正在向侧边栏头部注入超级管理员筛选框...');
+                
+                let select = document.getElementById('adminUserFilter');
+                if (!select) {
+                    select = document.createElement('select');
+                    select.id = 'adminUserFilter';
+                    select.style = `
+                        font-size: 11px;
+                        background: var(--bg-card, #1f2937);
+                        color: var(--text-main, #f9fafb);
+                        border: 1px solid var(--border, #374151);
+                        padding: 4px 8px;
+                        border-radius: 6px;
+                        outline: none;
+                        cursor: pointer;
+                        margin-left: auto;
+                        margin-right: 10px;
+                        font-weight: 500;
+                        box-shadow: var(--shadow-sm);
+                        max-width: 130px;
+                        z-index: 10;
                     `;
-                    Object.entries(users).forEach(([uid, name]) => {
-                        if (uid !== 'local_admin') {
-                            const opt = document.createElement('option');
-                            opt.value = uid;
-                            opt.innerText = `👤 ${name}`;
-                            select.appendChild(opt);
-                        }
-                    });
-                    
-                    // 绑定筛选事件
-                    select.removeEventListener('change', handleAdminFilterChange);
-                    select.addEventListener('change', handleAdminFilterChange);
-                })
-                .catch(e => console.error('❌ 加载花名册失败:', e));
-        }
+                    drawerHeader.insertBefore(select, closeBtn);
+                }
+
+                console.log('👑 [Loirs Multi-User]: 正在从后端拉取花名册以填装下拉框...');
+                // 异步获取当前已登记的花名册，装填到筛选下拉框中
+                fetch('/api/get-users')
+                    .then(res => res.json())
+                    .then(users => {
+                        console.log('👑 [Loirs Multi-User]: 后端花名册获取成功:', users);
+                        select.innerHTML = `
+                            <option value="all">👥 所有人</option>
+                            <option value="local_admin">👑 我自己</option>
+                        `;
+                        Object.entries(users).forEach(([uid, name]) => {
+                            if (uid !== 'local_admin') {
+                                const opt = document.createElement('option');
+                                opt.value = uid;
+                                opt.innerText = `👤 ${name}`;
+                                select.appendChild(opt);
+                            }
+                        });
+                        
+                        // 绑定筛选事件
+                        select.removeEventListener('change', handleAdminFilterChange);
+                        select.addEventListener('change', handleAdminFilterChange);
+                    })
+                    .catch(e => console.error('❌ 加载花名册失败:', e));
+                return;
+            }
+            
+            if (attempts > 50) {
+                clearInterval(interval);
+                console.error('❌ [Loirs Multi-User]: 轮询 5 秒（50次）超时，未能找到超级管理员可用的 .drawer-header 元素！');
+            }
+        }, 100);
     }
 
     function init() {
