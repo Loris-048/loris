@@ -2302,6 +2302,7 @@
         .suite-composer {
             transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.3s ease, box-shadow 0.3s ease, background-color 0.3s ease;
             max-height: 800px;
+            flex-shrink: 0;
         }
 
         /* 收缩按钮 - 升级为正圆形，贴近卡片上边缘（与常规模式完全对齐） */
