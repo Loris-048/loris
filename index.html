@@ -11053,9 +11053,8 @@ function safeSetSelect(selectEl, value, defaultValue) {
                     badge.id = 'colleaguePenNameBadge';
                     badge.style = `
                         font-size: 11px;
-                        color: var(--text-sub, #9ca3af);
-                        background: var(--bg-card, #1f2937);
-                        border: 1px solid var(--border, #374151);
+                        color: #ffffff;
+                        background: var(--primary, #6366f1);
                         padding: 4px 8px;
                         border-radius: 6px;
                         cursor: pointer;
@@ -11064,18 +11063,18 @@ function safeSetSelect(selectEl, value, defaultValue) {
                         display: inline-flex;
                         align-items: center;
                         gap: 4px;
-                        font-weight: 500;
-                        box-shadow: var(--shadow-sm);
-                        transition: border-color 0.2s;
+                        font-weight: 600;
+                        box-shadow: 0 2px 6px rgba(99, 102, 241, 0.3);
+                        transition: opacity 0.2s;
                         z-index: 10;
                     `;
                     drawerHeader.insertBefore(badge, closeBtn);
                 }
-                badge.innerHTML = `<i class="fas fa-user-edit" style="color: var(--primary);"></i> 笔名: ${username}`;
+                badge.innerHTML = `<i class="fas fa-user-edit" style="font-size: 10px;"></i> 笔名: ${username}`;
                 badge.removeEventListener('click', showRenameModal);
                 badge.addEventListener('click', showRenameModal);
-                badge.addEventListener('mouseenter', () => { badge.style.borderColor = 'var(--primary)'; });
-                badge.addEventListener('mouseleave', () => { badge.style.borderColor = 'var(--border)'; });
+                badge.addEventListener('mouseenter', () => { badge.style.opacity = '0.9'; });
+                badge.addEventListener('mouseleave', () => { badge.style.opacity = '1.0'; });
                 return;
             }
             if (attempts > 50) {
@@ -11103,19 +11102,20 @@ function safeSetSelect(selectEl, value, defaultValue) {
                     select.id = 'adminUserFilter';
                     select.style = `
                         font-size: 11px;
-                        background: var(--bg-card, #1f2937);
-                        color: var(--text-main, #f9fafb);
-                        border: 1px solid var(--border, #374151);
-                        padding: 4px 8px;
+                        background: var(--primary, #6366f1);
+                        color: #ffffff;
+                        border: none;
+                        padding: 4px 10px;
                         border-radius: 6px;
                         outline: none;
                         cursor: pointer;
                         margin-left: auto;
                         margin-right: 10px;
-                        font-weight: 500;
-                        box-shadow: var(--shadow-sm);
-                        max-width: 130px;
+                        font-weight: 600;
+                        box-shadow: 0 2px 6px rgba(99, 102, 241, 0.3);
+                        max-width: 120px;
                         z-index: 10;
+                        transition: opacity 0.2s;
                     `;
                     drawerHeader.insertBefore(select, closeBtn);
                 }
@@ -11125,14 +11125,16 @@ function safeSetSelect(selectEl, value, defaultValue) {
                     .then(users => {
                         console.log('👑 [Loirs Multi-User]: 后端花名册获取成功:', users);
                         select.innerHTML = `
-                            <option value="all">👥 所有人</option>
-                            <option value="local_admin">👑 我自己</option>
+                            <option value="all" style="background: #1f2937; color: #f9fafb;">所有人</option>
+                            <option value="local_admin" style="background: #1f2937; color: #f9fafb;">我自己</option>
                         `;
                         Object.entries(users).forEach(([uid, name]) => {
                             if (uid !== 'local_admin') {
                                 const opt = document.createElement('option');
                                 opt.value = uid;
-                                opt.innerText = `👤 ${name}`;
+                                opt.innerText = name;
+                                opt.style.background = '#1f2937';
+                                opt.style.color = '#f9fafb';
                                 select.appendChild(opt);
                             }
                         });
