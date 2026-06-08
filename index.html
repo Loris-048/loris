@@ -396,7 +396,10 @@
         };
         try {
             const isVercelOnline = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1' && window.location.protocol !== 'file:';
-            const customProxy = localStorage.getItem('online_proxy_url') || '';
+            let customProxy = localStorage.getItem('online_proxy_url') || '';
+            if (customProxy && !customProxy.trim().startsWith('http://') && !customProxy.trim().startsWith('https://')) {
+                customProxy = 'https://' + customProxy.trim();
+            }
             const proxyEndpoint = isVercelOnline && customProxy
                 ? customProxy.replace(/\/$/, '')
                 : '/api/proxy';
