@@ -1304,6 +1304,11 @@ document.addEventListener('DOMContentLoaded', () => {
     initSuiteArchiveSettings();
 
     (async () => {
+        // 确保 DOM 树完全画完并就绪后再启动核心系统和用户登记
+        if (document.readyState === 'loading') {
+            await new Promise(resolve => document.addEventListener('DOMContentLoaded', resolve));
+        }
+        
         try {
             await StorageAdapter.init();
             if (StorageAdapter.isServer()) {
