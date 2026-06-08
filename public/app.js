@@ -8501,9 +8501,18 @@ async function runGeneration(task) {
         debugLog("📸 处理参考图片...");
         for (const file of task.files) {
             try {
-                // 将图片转为base64 data URL作为参考图URL
-                const base64Data = await fileToBase64(file);
-                const dataUrl = `data:${file.type};base64,${base64Data}`;
+                // 部署运行环境智能判别锁：线上 Vercel 环境才进行自适应压缩，本地/内网绝对不压缩
+                let processedFile = file;
+                const isVercelOnline = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1' && window.location.protocol !== 'file:';
+                if (isVercelOnline) {
+                    try {
+                        processedFile = await compressImage(file, 1, 1536);
+                    } catch (compressError) {
+                        debugWarn("⚠️ 线上参考图自适应压缩失败，回退到原图:", compressError.message);
+                    }
+                }
+                const base64Data = await fileToBase64(processedFile);
+                const dataUrl = `data:${processedFile.type};base64,${base64Data}`;
                 imageUrls.push(dataUrl);
             } catch (err) {
                 console.error("❌ 处理参考图失败:", err);
@@ -8777,13 +8786,16 @@ async function runMediaRecognition(task) {
         debugLog("📸 处理图片...");
         for (const file of task.files) {
             if (file.type && file.type.startsWith('image/')) {
-                // Qwen3 模型限制图片 5MB，需要压缩
+                // Qwen3 模型限制图片 5MB，Vercel 线上端限制图片 1MB，需要自适应压缩
                 let processedFile = file;
-                if (isModelScope) {
+                const isVercelOnline = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1' && window.location.protocol !== 'file:';
+                if (isModelScope || isVercelOnline) {
                     try {
-                        processedFile = await compressImage(file, 5);
+                        const maxMB = isVercelOnline ? 1 : 5;
+                        const maxDim = isVercelOnline ? 1536 : 2048;
+                        processedFile = await compressImage(file, maxMB, maxDim);
                     } catch (compressError) {
-                        debugWarn("⚠️ 图片压缩失败，使用原图:", compressError.message);
+                        debugWarn("⚠️ 图片自适应压缩失败，使用原图:", compressError.message);
                     }
                 }
                 
@@ -10943,14 +10955,17 @@ function safeSetSelect(selectEl, value, defaultValue) {
             // 构造消息内容
             const content = [];
 
-            // 添加图片（ModelScope API 需要压缩图片到 5MB 以下）
+            // 添加图片（ModelScope API / Vercel 线上端 1MB 限制需要压缩图片）
             for (const file of filesForTask) {
                 let processedFile = file;
+                const isVercelOnline = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1' && window.location.protocol !== 'file:';
                 
-                // 如果是 ModelScope API 或图片太大，先压缩
-                if (isModelScope || file.size > 4 * 1024 * 1024) {
+                // 如果是 ModelScope API、线上 Vercel 节点，或者图片过大，才进行自适应压缩
+                if (isModelScope || isVercelOnline || file.size > 4 * 1024 * 1024) {
                     try {
-                        processedFile = await compressImage(file);
+                        const maxMB = isVercelOnline ? 1 : (isModelScope ? 5 : 4);
+                        const maxDim = isVercelOnline ? 1536 : 2048;
+                        processedFile = await compressImage(file, maxMB, maxDim);
                         debugLog(`📦 图片压缩: ${(file.size / 1024 / 1024).toFixed(2)}MB -> ${(processedFile.size / 1024 / 1024).toFixed(2)}MB`);
                     } catch (compressErr) {
                         console.warn('⚠️ 图片压缩失败，使用原图:', compressErr);
@@ -11182,8 +11197,17 @@ function safeSetSelect(selectEl, value, defaultValue) {
             // 准备参考图
             let imageUrls = [];
             for (const file of suiteFilesForTask) {
-                const base64Data = await fileToBase64(file);
-                imageUrls.push(`data:${file.type};base64,${base64Data}`);
+                let processedFile = file;
+                const isVercelOnline = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1' && window.location.protocol !== 'file:';
+                if (isVercelOnline) {
+                    try {
+                        processedFile = await compressImage(file, 1, 1536);
+                    } catch (compressError) {
+                        debugWarn("⚠️ 套图自适应压缩失败，回退到原图:", compressError.message);
+                    }
+                }
+                const base64Data = await fileToBase64(processedFile);
+                imageUrls.push(`data:${processedFile.type};base64,${base64Data}`);
             }
 
             // 构造绘图 API payload（与常规模式一致）
@@ -11560,7 +11584,21 @@ function safeSetSelect(selectEl, value, defaultValue) {
         const isGPTImage2 = isGPTImage2Model(model);
         const submitUrl = `${apiBase.replace(/\/$/, '')}${isGPTImage2 ? '/v1/draw/completions' : '/v1/draw/nano-banana'}`;
         const resultUrl = `${apiBase.replace(/\/$/, '')}/v1/draw/result`;
-        const referenceUrls = await Promise.all(suiteFilesForTask.map(async (file) => `data:${file.type};base64,${await fileToBase64(file)}`));
+        
+        // 批量自适应压缩：如果是线上 Vercel，强力将每一张参考图控制在 1MB/1536px 以内，安全突破 4.5MB 限制
+        const referenceUrls = await Promise.all(suiteFilesForTask.map(async (file) => {
+            let processedFile = file;
+            const isVercelOnline = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1' && window.location.protocol !== 'file:';
+            if (isVercelOnline) {
+                try {
+                    processedFile = await compressImage(file, 1, 1536);
+                } catch (compressError) {
+                    debugWarn("⚠️ 批量参考图自适应压缩失败，回退到原图:", compressError.message);
+                }
+            }
+            const base64Data = await fileToBase64(processedFile);
+            return `data:${processedFile.type};base64,${base64Data}`;
+        }));
         const suiteImageMeta = [];
         const suiteImageByIndex = new Map();
         const normalizeImageUrl = (value) => String(value || '').trim();
