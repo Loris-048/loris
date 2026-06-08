@@ -12687,110 +12687,80 @@ function safeSetSelect(selectEl, value, defaultValue) {
     }
 
     function renderUserTagInHeader(username) {
-        let badgeArea = document.getElementById('userBadgeArea');
-        const settingsArea = document.querySelector('.settings-area');
-        const themeBtn = document.getElementById('themeBtn');
-
-        if (!settingsArea || !themeBtn) return;
-
-        if (!badgeArea) {
-            badgeArea = document.createElement('div');
-            badgeArea.id = 'userBadgeArea';
-            badgeArea.style = 'display: inline-flex; align-items: center; gap: 8px; margin-right: 10px; vertical-align: middle;';
-            settingsArea.insertBefore(badgeArea, themeBtn);
-        }
-
-        badgeArea.innerHTML = `
-            <span id="userPenName" style="
-                font-size: 13px;
-                color: var(--text-main);
-                display: inline-flex;
-                align-items: center;
-                gap: 5px;
-                cursor: pointer;
-                padding: 5px 10px;
-                border-radius: 8px;
-                background: var(--bg-card);
-                border: 1px solid var(--border);
-                box-shadow: var(--shadow-sm);
-                font-weight: 500;
-                transition: all 0.2s;
-            " title="点击修改笔名">
-                <i class="fas fa-user-edit" style="color: var(--primary); font-size: 11px;"></i>
-                ${username}
-            </span>
-        `;
-
-        const penNameEl = badgeArea.querySelector('#userPenName');
-        if (penNameEl) {
-            penNameEl.addEventListener('click', showRenameModal);
-            penNameEl.addEventListener('mouseenter', () => {
-                penNameEl.style.borderColor = 'var(--primary)';
-            });
-            penNameEl.addEventListener('mouseleave', () => {
-                penNameEl.style.borderColor = 'var(--border)';
-            });
+        const drawerHeader = document.querySelector('.drawer-header');
+        const closeBtn = document.querySelector('.close-drawer');
+        if (drawerHeader && closeBtn) {
+            let badge = document.getElementById('colleaguePenNameBadge');
+            if (!badge) {
+                badge = document.createElement('span');
+                badge.id = 'colleaguePenNameBadge';
+                badge.style = `
+                    font-size: 11px;
+                    color: var(--text-sub, #9ca3af);
+                    background: var(--bg-card, #1f2937);
+                    border: 1px solid var(--border, #374151);
+                    padding: 4px 8px;
+                    border-radius: 6px;
+                    cursor: pointer;
+                    margin-left: auto;
+                    margin-right: 10px;
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 4px;
+                    font-weight: 500;
+                    box-shadow: var(--shadow-sm);
+                    transition: border-color 0.2s;
+                `;
+                drawerHeader.insertBefore(badge, closeBtn);
+            }
+            badge.innerHTML = `<i class="fas fa-user-edit" style="color: var(--primary);"></i> 笔名: ${username}`;
+            
+            badge.removeEventListener('click', showRenameModal);
+            badge.addEventListener('click', showRenameModal);
+            
+            badge.addEventListener('mouseenter', () => { badge.style.borderColor = 'var(--primary)'; });
+            badge.addEventListener('mouseleave', () => { badge.style.borderColor = 'var(--border)'; });
         }
     }
 
+    function handleAdminFilterChange() {
+        loadHistoryPage(1);
+    }
+
     function renderAdminUserFilter() {
-        let badgeArea = document.getElementById('userBadgeArea');
-        const settingsArea = document.querySelector('.settings-area');
-        const themeBtn = document.getElementById('themeBtn');
+        // 在右侧滑出的「生成历史」抽屉标题栏中，注入“所有人/同事”筛选下拉框
+        const drawerHeader = document.querySelector('.drawer-header');
+        const closeBtn = document.querySelector('.close-drawer');
+        if (drawerHeader && closeBtn) {
+            let select = document.getElementById('adminUserFilter');
+            if (!select) {
+                select = document.createElement('select');
+                select.id = 'adminUserFilter';
+                select.style = `
+                    font-size: 11px;
+                    background: var(--bg-card, #1f2937);
+                    color: var(--text-main, #f9fafb);
+                    border: 1px solid var(--border, #374151);
+                    padding: 4px 8px;
+                    border-radius: 6px;
+                    outline: none;
+                    cursor: pointer;
+                    margin-left: auto;
+                    margin-right: 10px;
+                    font-weight: 500;
+                    box-shadow: var(--shadow-sm);
+                    max-width: 130px;
+                `;
+                drawerHeader.insertBefore(select, closeBtn);
+            }
 
-        if (!settingsArea || !themeBtn) return;
-
-        if (!badgeArea) {
-            badgeArea = document.createElement('div');
-            badgeArea.id = 'userBadgeArea';
-            badgeArea.style = 'display: inline-flex; align-items: center; gap: 8px; margin-right: 10px; vertical-align: middle;';
-            settingsArea.insertBefore(badgeArea, themeBtn);
-        }
-
-        badgeArea.innerHTML = `
-            <span id="userPenName" style="
-                font-size: 13px;
-                color: var(--text-main);
-                display: inline-flex;
-                align-items: center;
-                gap: 5px;
-                padding: 5px 10px;
-                border-radius: 8px;
-                background: var(--bg-card);
-                border: 1px solid var(--border);
-                box-shadow: var(--shadow-sm);
-                font-weight: 600;
-            " title="超级管理员，掌控全局">
-                <i class="fas fa-user-shield" style="color: #e0a82e; font-size: 11px;"></i>
-                本机管理员
-            </span>
-            <select id="adminUserFilter" style="
-                font-size: 13px;
-                background: var(--bg-card);
-                color: var(--text-main);
-                border: 1px solid var(--border);
-                padding: 5px 10px;
-                border-radius: 8px;
-                outline: none;
-                cursor: pointer;
-                box-shadow: var(--shadow-sm);
-                font-weight: 500;
-                transition: border-color 0.2s;
-            " title="按同事筛选历史记录">
-                <option value="all">👥 所有人 (全部历史)</option>
-                <option value="local_admin">👑 本机管理员</option>
-            </select>
-        `;
-
-        // 异步获取当前已登记的花名册，装填到管理员下拉筛选中
-        fetch('/api/get-users')
-            .then(res => res.json())
-            .then(users => {
-                const select = badgeArea.querySelector('#adminUserFilter');
-                if (select) {
+            // 异步获取当前已登记的花名册，装填到筛选下拉框中
+            fetch('/api/get-users')
+                .then(res => res.json())
+                .then(users => {
                     select.innerHTML = `
-                        <option value="all">👥 所有人 (全部历史)</option>
-                        <option value="local_admin">👑 本机管理员</option>
+                        <option value="all">👥 所有人</option>
+                        <option value="local_admin">👑 我自己</option>
                     `;
                     Object.entries(users).forEach(([uid, name]) => {
                         if (uid !== 'local_admin') {
@@ -12801,12 +12771,12 @@ function safeSetSelect(selectEl, value, defaultValue) {
                         }
                     });
                     
-                    select.addEventListener('change', () => {
-                        loadHistoryPage(1);
-                    });
-                }
-            })
-            .catch(e => console.error('❌ 加载花名册失败:', e));
+                    // 绑定筛选事件
+                    select.removeEventListener('change', handleAdminFilterChange);
+                    select.addEventListener('change', handleAdminFilterChange);
+                })
+                .catch(e => console.error('❌ 加载花名册失败:', e));
+        }
     }
 
     function init() {
