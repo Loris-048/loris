@@ -28,5 +28,5 @@ deploy.bat
 split.js
 run.bat
 readme.txt
-index.html
 config.json
+public/
