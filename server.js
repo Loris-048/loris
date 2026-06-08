@@ -105,10 +105,15 @@ function saveHistory(history) {
 // 深度过滤 Windows/Linux 文件系统禁用字符，让文件夹名字安全无暇
 function sanitizeFolderName(name) {
     if (!name || !name.trim()) return '未命名对话';
-    // 替换特殊危险字符如 \ / : * ? " < > | 为下划线
-    let sanitized = name.trim().replace(/[\\\/:\*\?"<>\|]/g, '_');
+    // 1. 强力清除任何看不见的控制字符、换行符 (\r, \n) 和制表符 (\t)
+    let sanitized = name.trim().replace(/[\r\n\t\x00-\x1F\x7F]/g, '');
+    // 2. 替换中英文 Windows 危险和禁用标点符号（包括全角/半角冒号、问号、斜杠、双引号、尖括号等）为下划线
+    sanitized = sanitized.replace(/[\\\/:\*\?"<>\|：？＊“”（）《》｜\s]+/g, '_');
+    // 3. 去掉可能导致 Windows Explorer 报错打不开的头部或尾部下划线、空格、句号等
+    sanitized = sanitized.replace(/^_+|_+$/g, '').replace(/^\.+|\.+$/g, '').trim();
+    if (!sanitized) return '未命名对话';
     if (sanitized.length > 100) {
-        sanitized = sanitized.substring(0, 100).trim();
+        sanitized = sanitized.substring(0, 100).trim().replace(/_+$/g, '');
     }
     return sanitized;
 }
