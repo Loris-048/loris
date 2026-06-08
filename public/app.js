@@ -1302,32 +1302,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     initSuiteArchiveSettings();
-
-    (async () => {
-        // 确保 DOM 树完全画完并就绪后再启动核心系统和用户登记
-        if (document.readyState === 'loading') {
-            await new Promise(resolve => document.addEventListener('DOMContentLoaded', resolve));
-        }
-        
-        console.log('⚡ [Loirs Startup]: DOM 树渲染就绪，开始自适应初始化队列...');
-        try {
-            await StorageAdapter.init();
-            console.log('⚡ [Loirs Startup]: StorageAdapter 初始化完成，当前运行模式:', StorageAdapter.mode);
-            if (StorageAdapter.isServer()) {
-                await checkUserRegistration();
-                loadHistoryToSidebar();
-            } else {
-                console.warn('⚡ [Loirs Startup]: 检测到当前处于 IndexedDB 本地离线模式，跳过多用户名字登记。');
-            }
-        } catch (e) {
-            console.error('❌ [Loirs Startup]: 严重错误！StorageAdapter 初始化流程遭遇了未捕获异常:', e);
-        }
-        try {
-            await initDB();
-        } catch (e) {
-            debugLog("DB init skipped or failed");
-        }
-    })();
     renderTaskResultNotifications();
 
     // 全局滚轮事件：在左右空白区域也能滚动 scrollArea
@@ -12849,6 +12823,33 @@ function safeSetSelect(selectEl, value, defaultValue) {
         window.switchPage = switchPage;
         window.buildSlots = buildSlots;
         window.suiteNewTask = suiteNewTask;
+
+        // 暴露多用户注册相关函数到全局作用域 (双保险，确保全局打通)
+        window.checkUserRegistration = checkUserRegistration;
+        window.renderAdminUserFilter = renderAdminUserFilter;
+        window.renderUserTagInHeader = renderUserTagInHeader;
+
+        // 启动自适应初始化队列 (移动至 init 内部，保证脚本 100% 完全翻译解析，物理杜绝时序 ReferenceError)
+        (async () => {
+            console.log('⚡ [Loirs Startup]: 脚本完全解析并就绪，开始自适应初始化队列...');
+            try {
+                await StorageAdapter.init();
+                console.log('⚡ [Loirs Startup]: StorageAdapter 初始化完成，当前运行模式:', StorageAdapter.mode);
+                if (StorageAdapter.isServer()) {
+                    await checkUserRegistration();
+                    loadHistoryToSidebar();
+                } else {
+                    console.warn('⚡ [Loirs Startup]: 检测到当前处于 IndexedDB 本地离线模式，跳过多用户名字登记。');
+                }
+            } catch (e) {
+                console.error('❌ [Loirs Startup]: 严重错误！StorageAdapter 初始化流程遭遇了未捕获异常:', e);
+            }
+            try {
+                await initDB();
+            } catch (e) {
+                debugLog("DB init skipped or failed");
+            }
+        })();
     }
 
     if (document.readyState === 'loading') {
