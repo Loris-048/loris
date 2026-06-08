@@ -12733,9 +12733,29 @@ function safeSetSelect(selectEl, value, defaultValue) {
         }, 100);
     }
 
-    function handleAdminFilterChange() {
+    // 全局过滤器选中动作，更新值并秒级触发重载
+    window.selectAdminFilterOption = function(itemEl, value) {
+        const valEl = document.getElementById('adminUserFilterValue');
+        if (valEl) valEl.textContent = itemEl.textContent;
+        
+        const menu = document.getElementById('adminUserFilterMenu');
+        if (menu) {
+            menu.querySelectorAll('.custom-select-item').forEach(item => {
+                item.classList.remove('selected');
+            });
+        }
+        itemEl.classList.add('selected');
+        
+        const input = document.getElementById('adminUserFilter');
+        if (input) {
+            input.value = value;
+        }
+        
+        if (menu) menu.classList.remove('show');
+        
+        // 重新拉取对应用户的历史
         loadHistoryPage(1);
-    }
+    };
 
     function renderAdminUserFilter() {
         console.log('👑 [Loirs Multi-User]: renderAdminUserFilter 被调用，超级管理员专属。启动 DOM 轮询探测...');
@@ -12747,30 +12767,31 @@ function safeSetSelect(selectEl, value, defaultValue) {
             
             if (drawerHeader && closeBtn) {
                 clearInterval(interval);
-                console.log('👑 [Loirs Multi-User]: 轮询成功：成功捕捉到历史侧边栏标题节点！正在向侧边栏头部注入超级管理员筛选框...');
+                console.log('👑 [Loirs Multi-User]: 轮询成功：成功捕捉到历史侧边栏标题节点！正在向侧边栏头部注入超级模拟下拉框...');
                 
-                let select = document.getElementById('adminUserFilter');
-                if (!select) {
-                    select = document.createElement('select');
-                    select.id = 'adminUserFilter';
-                    select.style = `
-                        font-size: 11px;
-                        background: var(--primary, #6366f1);
-                        color: #ffffff;
-                        border: none;
-                        padding: 4px 10px;
-                        border-radius: 6px;
-                        outline: none;
-                        cursor: pointer;
+                let wrapper = document.getElementById('adminUserFilterWrapper');
+                if (!wrapper) {
+                    wrapper = document.createElement('div');
+                    wrapper.id = 'adminUserFilterWrapper';
+                    wrapper.className = 'custom-select-wrapper';
+                    wrapper.style = `
                         margin-left: auto;
-                        margin-right: 10px;
-                        font-weight: 600;
-                        box-shadow: 0 2px 6px rgba(99, 102, 241, 0.3);
-                        max-width: 120px;
-                        z-index: 10;
-                        transition: opacity 0.2s;
+                        margin-right: 15px;
+                        z-index: 100;
+                        position: relative;
+                        display: inline-block;
                     `;
-                    drawerHeader.insertBefore(select, closeBtn);
+                    
+                    wrapper.innerHTML = `
+                        <div class="custom-select-btn" onclick="toggleCustomSelect('adminUserFilterMenu', event)" style="font-size: 11px; padding: 4px 10px; border-radius: 6px; font-weight: 600; background: var(--primary, #6366f1); color: #ffffff; border: none; box-shadow: 0 2px 6px rgba(99, 102, 241, 0.3); display: flex; align-items: center; gap: 6px; cursor: pointer; height: 24px;">
+                            <span id="adminUserFilterValue">所有人</span>
+                            <i class="fas fa-chevron-down" style="font-size: 8px; opacity: 0.8;"></i>
+                        </div>
+                        <div class="custom-select-menu" id="adminUserFilterMenu" style="bottom: auto; top: calc(100% + 6px); border-radius: 10px !important; background: #1f2937; border: 1px solid var(--border, #374151); box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5); padding: 4px 0; min-width: 100px; display: none;">
+                        </div>
+                        <input type="hidden" id="adminUserFilter" value="all">
+                    `;
+                    drawerHeader.insertBefore(wrapper, closeBtn);
                 }
 
                 console.log('👑 [Loirs Multi-User]: 正在从后端拉取花名册以填装下拉框...');
@@ -12779,24 +12800,23 @@ function safeSetSelect(selectEl, value, defaultValue) {
                     .then(res => res.json())
                     .then(users => {
                         console.log('👑 [Loirs Multi-User]: 后端花名册获取成功:', users);
-                        select.innerHTML = `
-                            <option value="all" style="background: #1f2937; color: #f9fafb;">所有人</option>
-                            <option value="local_admin" style="background: #1f2937; color: #f9fafb;">我自己</option>
-                        `;
-                        Object.entries(users).forEach(([uid, name]) => {
-                            if (uid !== 'local_admin') {
-                                const opt = document.createElement('option');
-                                opt.value = uid;
-                                opt.innerText = name;
-                                opt.style.background = '#1f2937';
-                                opt.style.color = '#f9fafb';
-                                select.appendChild(opt);
-                            }
-                        });
-                        
-                        // 绑定筛选事件
-                        select.removeEventListener('change', handleAdminFilterChange);
-                        select.addEventListener('change', handleAdminFilterChange);
+                        const menu = document.getElementById('adminUserFilterMenu');
+                        if (menu) {
+                            menu.innerHTML = `
+                                <div class="custom-select-item selected" onclick="selectAdminFilterOption(this, 'all')" style="font-size: 11px; padding: 6px 12px; cursor: pointer; color: #f9fafb; white-space: nowrap;">所有人</div>
+                                <div class="custom-select-item" onclick="selectAdminFilterOption(this, 'local_admin')" style="font-size: 11px; padding: 6px 12px; cursor: pointer; color: #f9fafb; white-space: nowrap;">我自己</div>
+                            `;
+                            Object.entries(users).forEach(([uid, name]) => {
+                                if (uid !== 'local_admin') {
+                                    const opt = document.createElement('div');
+                                    opt.className = 'custom-select-item';
+                                    opt.style = 'font-size: 11px; padding: 6px 12px; cursor: pointer; color: #f9fafb; white-space: nowrap;';
+                                    opt.innerText = name;
+                                    opt.setAttribute('onclick', `selectAdminFilterOption(this, '${uid}')`);
+                                    menu.appendChild(opt);
+                                }
+                            });
+                        }
                     })
                     .catch(e => console.error('❌ 加载花名册失败:', e));
                 return;
