@@ -3,10 +3,10 @@
     "outputDirectory": "public",
     "functions": {
         "api/proxy.js": {
-            "maxDuration": 30
+            "runtime": "edge"
         },
         "api/config.js": {
-            "maxDuration": 10
+            "runtime": "edge"
         }
     }
 }
