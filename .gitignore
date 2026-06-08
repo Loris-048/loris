@@ -17,5 +17,16 @@
 # 🔑 极度关键：防止将本地带有您个人 Token 的密钥文件提交到 Git 记录中
 config.json
 
-# 忽略编译打包产生的离线单文件输出目录（我们已经有根目录下的 index.html 上传到 GitHub 了）
+# 忽略编译打包产生的离线单文件输出目录
 dist/
+
+# 🔒 忽略本地专用开发、编译、运行、部署脚本与开发文档
+server.js
+build.js
+deploy.js
+deploy.bat
+split.js
+run.bat
+readme.txt
+index.html
+config.json
