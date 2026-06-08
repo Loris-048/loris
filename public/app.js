@@ -8786,16 +8786,20 @@ async function runMediaRecognition(task) {
         debugLog("📸 处理图片...");
         for (const file of task.files) {
             if (file.type && file.type.startsWith('image/')) {
-                // Qwen3 模型限制图片 5MB，Vercel 线上端限制图片 1MB，需要自适应压缩
+                // 部署双线控制：线上Vercel环境采用 1MB 强制压缩防 413；本地环境则 100% 还原您原本的 ModelScope 5MB 压缩逻辑
                 let processedFile = file;
                 const isVercelOnline = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1' && window.location.protocol !== 'file:';
-                if (isModelScope || isVercelOnline) {
+                if (isVercelOnline) {
                     try {
-                        const maxMB = isVercelOnline ? 1 : 5;
-                        const maxDim = isVercelOnline ? 1536 : 2048;
-                        processedFile = await compressImage(file, maxMB, maxDim);
+                        processedFile = await compressImage(file, 1, 1536);
                     } catch (compressError) {
-                        debugWarn("⚠️ 图片自适应压缩失败，使用原图:", compressError.message);
+                        debugWarn("⚠️ 线上图片自适应压缩失败，回退到原图:", compressError.message);
+                    }
+                } else if (isModelScope) {
+                    try {
+                        processedFile = await compressImage(file, 5);
+                    } catch (compressError) {
+                        debugWarn("⚠️ 本地图片压缩失败，使用原图:", compressError.message);
                     }
                 }
                 
@@ -10955,20 +10959,23 @@ function safeSetSelect(selectEl, value, defaultValue) {
             // 构造消息内容
             const content = [];
 
-            // 添加图片（ModelScope API / Vercel 线上端 1MB 限制需要压缩图片）
+            // 添加图片：线上Vercel强制1MB保安全，本地环境100%还原您以前设计的ModelScope或大于4MB时才压缩的策略
             for (const file of filesForTask) {
                 let processedFile = file;
                 const isVercelOnline = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1' && window.location.protocol !== 'file:';
                 
-                // 如果是 ModelScope API、线上 Vercel 节点，或者图片过大，才进行自适应压缩
-                if (isModelScope || isVercelOnline || file.size > 4 * 1024 * 1024) {
+                if (isVercelOnline) {
                     try {
-                        const maxMB = isVercelOnline ? 1 : (isModelScope ? 5 : 4);
-                        const maxDim = isVercelOnline ? 1536 : 2048;
-                        processedFile = await compressImage(file, maxMB, maxDim);
-                        debugLog(`📦 图片压缩: ${(file.size / 1024 / 1024).toFixed(2)}MB -> ${(processedFile.size / 1024 / 1024).toFixed(2)}MB`);
+                        processedFile = await compressImage(file, 1, 1536);
                     } catch (compressErr) {
-                        console.warn('⚠️ 图片压缩失败，使用原图:', compressErr);
+                        console.warn('⚠️ 线上图片压缩失败，使用原图:', compressErr);
+                    }
+                } else if (isModelScope || file.size > 4 * 1024 * 1024) {
+                    try {
+                        processedFile = await compressImage(file);
+                        debugLog(`📦 本地图片压缩: ${(file.size / 1024 / 1024).toFixed(2)}MB -> ${(processedFile.size / 1024 / 1024).toFixed(2)}MB`);
+                    } catch (compressErr) {
+                        console.warn('⚠️ 本地图片压缩失败，使用原图:', compressErr);
                     }
                 }
                 
