@@ -6439,7 +6439,7 @@ function createHistoryThumbnail(item) {
     }
     div.innerHTML = `
         <div class="history-thumb-column">
-            <div class="history-thumb-frame" onclick="event.stopPropagation(); ${isSuite ? `restoreSuiteFromHistory(${itemId})` : `openHistoryModal(${itemId})`}" style="cursor: pointer;" title="${escapeAttr(titleTip)}">
+            <div class="history-thumb-frame" onclick="event.stopPropagation(); ${isSuite ? `restoreSuiteFromHistory('${itemId}')` : `openHistoryModal('${itemId}')`}" style="cursor: pointer;" title="${escapeAttr(titleTip)}">
                 <img src="${escapeAttr(getSafeImageSrc(imgSrc, 80, 80))}" class="history-item-img" loading="lazy" onerror="handleImageLoadError(this)">
                 ${typeBadge}
                 ${archiveBadge}
@@ -6456,25 +6456,25 @@ function createHistoryThumbnail(item) {
             ${metaInfoHtml}
             <div class="history-item-actions">
                 <div class="history-item-actions-row">
-                    <button onclick="event.stopPropagation(); reuseHistoryItemById(${itemId})">
+                    <button onclick="event.stopPropagation(); reuseHistoryItemById('${itemId}')">
                         <i class="fas fa-redo"></i> 复用
                     </button>
-                    ${isSuite ? `<button onclick="event.stopPropagation(); restoreSuiteFromHistory(${itemId})" style="background: linear-gradient(135deg, #8b5cf6, #7c3aed); color: white; border-color: #7c3aed;">
+                    ${isSuite ? `<button onclick="event.stopPropagation(); restoreSuiteFromHistory('${itemId}')" style="background: linear-gradient(135deg, #8b5cf6, #7c3aed); color: white; border-color: #7c3aed;">
                         <i class="fas fa-eye"></i> 查看
                     </button>
-                    <button onclick="event.stopPropagation(); copyHistoryRuleById(${itemId})">
+                    <button onclick="event.stopPropagation(); copyHistoryRuleById('${itemId}')">
                         <i class="fas fa-copy"></i> 复制关键词
                     </button>` : `
-                    <button onclick="event.stopPropagation(); copyHistoryPromptById(${itemId})">
+                    <button onclick="event.stopPropagation(); copyHistoryPromptById('${itemId}')">
                         <i class="fas fa-copy"></i> 复制提示词
                     </button>`}
                     ${isRecognition && item.result ? `<button onclick="event.stopPropagation(); copyHistoryResult(this)">
                         <i class="fas fa-file-alt"></i> 复制结果
                     </button>` : ''}
-                    ${item.type === 'image' ? `<button onclick="event.stopPropagation(); openHistoryModal(${itemId})" style="background: var(--primary); color: white; border-color: var(--primary);">
+                    ${item.type === 'image' ? `<button onclick="event.stopPropagation(); openHistoryModal('${itemId}')" style="background: var(--primary); color: white; border-color: var(--primary);">
                         <i class="fas fa-expand"></i> 查看
                     </button>` : ''}
-                    <button onclick="event.stopPropagation(); deleteFromDB(${itemId}, this.closest('.history-item'))" style="background: var(--bg-error-light); color: var(--text-error); border-color: var(--border-error);">
+                    <button onclick="event.stopPropagation(); deleteFromDB('${itemId}', this.closest('.history-item'))" style="background: var(--bg-error-light); color: var(--text-error); border-color: var(--border-error);">
                         <i class="fas fa-trash"></i> 删除
                     </button>
                 </div>
