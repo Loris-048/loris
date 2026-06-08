@@ -1,8 +1,0 @@
-{
-  "name": "loirs",
-  "version": "1.0.0",
-  "private": true,
-  "scripts": {
-    "build": "mkdir -p public && cp index.html public/"
-  }
-}
