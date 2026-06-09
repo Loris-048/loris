@@ -6482,24 +6482,37 @@ function createHistoryThumbnail(item) {
             ${metaInfoHtml}
             <div class="history-item-actions">
                 <div class="history-item-actions-row">
+                    <!-- 1. 复用 -->
                     <button onclick="event.stopPropagation(); reuseHistoryItemById('${itemId}')" title="复用参数">
                         <i class="fas fa-redo"></i> 复用
                     </button>
-                    ${isSuite ? `<button onclick="event.stopPropagation(); restoreSuiteFromHistory('${itemId}')" style="background: linear-gradient(135deg, #8b5cf6, #7c3aed); color: white; border-color: #7c3aed;" title="进入套图查看">
-                        <i class="fas fa-eye"></i> 查看
-                    </button>
+                    <!-- 2. 复制 -->
+                    ${isSuite ? `
                     <button onclick="event.stopPropagation(); copyHistoryRuleById('${itemId}')" title="复制生成规则">
                         <i class="fas fa-copy"></i> 复制
-                    </button>` : `
+                    </button>
+                    ` : `
                     <button onclick="event.stopPropagation(); copyHistoryPromptById('${itemId}')" title="复制生图提示词">
                         <i class="fas fa-copy"></i> 复制
-                    </button>`}
-                    ${isRecognition && item.result ? `<button onclick="event.stopPropagation(); copyHistoryResult(this)" title="复制反推文本">
+                    </button>
+                    `}
+                    ${isRecognition && item.result ? `
+                    <button onclick="event.stopPropagation(); copyHistoryResult(this)" title="复制反推文本">
                         <i class="fas fa-file-alt"></i> 复制结果
-                    </button>` : ''}
-                    ${item.type === 'image' ? `<button onclick="event.stopPropagation(); openHistoryModal('${itemId}')" style="background: var(--primary); color: white; border-color: var(--primary);" title="查看高清大图">
+                    </button>
+                    ` : ''}
+                    <!-- 3. 查看 (样式图标完全对齐) -->
+                    ${isSuite ? `
+                    <button onclick="event.stopPropagation(); restoreSuiteFromHistory('${itemId}')" style="background: var(--primary); color: white; border-color: var(--primary);" title="进入套图查看">
                         <i class="fas fa-expand"></i> 查看
-                    </button>` : ''}
+                    </button>
+                    ` : ''}
+                    ${item.type === 'image' ? `
+                    <button onclick="event.stopPropagation(); openHistoryModal('${itemId}')" style="background: var(--primary); color: white; border-color: var(--primary);" title="查看高清大图">
+                        <i class="fas fa-expand"></i> 查看
+                    </button>
+                    ` : ''}
+                    <!-- 4. 删除 -->
                     <button onclick="event.stopPropagation(); deleteFromDB('${itemId}', this.closest('.history-item'))" style="background: var(--bg-error-light); color: var(--text-error); border-color: var(--border-error);" title="删除">
                         <i class="fas fa-trash"></i>
                     </button>
