@@ -69,7 +69,7 @@
         </div>
 
         <!-- Cloudflare Workers 免费高速代理网关 -->
-        <div class="token-box" style="border-color: #10b981;">
+        <div class="token-box" id="onlineProxyUrlContainer" style="border-color: #10b981;">
             <label style="font-size: 12px; color: var(--text-sub); white-space: nowrap;">CF 免费加速网关</label>
             <div class="token-input-wrapper">
                 <input type="text" id="onlineProxyUrl" placeholder="https://xxx.workers.dev" title="粘贴您申请的 Cloudflare Workers 免费代理网址，彻底粉碎 10 秒超时 504 报错，实现一分钟超长生图不掉线！" style="font-size: 12px; padding: 0 10px; border: none; background: transparent; color: var(--text-main); width: 100%; outline: none; box-sizing: border-box;">
@@ -111,19 +111,6 @@
             </div>
         </div>
 
-        <div class="suite-archive-settings">
-            <div class="suite-archive-title">
-                <i class="fas fa-bug"></i>
-                <span>调试日志</span>
-            </div>
-            <label class="suite-archive-toggle">
-                <input type="checkbox" id="debugLogToggle" onchange="setDebugLogEnabled(this.checked)">
-                <span>开启详细控制台日志</span>
-            </label>
-            <div class="suite-archive-help">
-                默认关闭，开启后会输出图片生成、反推、轮询和请求响应调试信息。
-            </div>
-        </div>
             </div>
         </div>
 
@@ -11472,6 +11459,11 @@ function safeSetSelect(selectEl, value, defaultValue) {
     function init() {
         ensureStyles();
         initModalZoomAndDrag(); // 绑定大图无极滚轮缩放与拖动触控事件
+        const isVercelOnline = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1' && window.location.protocol !== 'file:';
+        const proxyContainer = document.getElementById('onlineProxyUrlContainer');
+        if (proxyContainer) {
+            proxyContainer.style.display = isVercelOnline ? 'flex' : 'none';
+        }
         buildSuitePage();
         syncChatLayoutMetrics();
         window.addEventListener('resize', syncChatLayoutMetrics);
