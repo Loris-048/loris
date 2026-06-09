@@ -401,9 +401,13 @@
         };
         try {
             const isVercelOnline = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1' && window.location.protocol !== 'file:';
-            let customProxy = localStorage.getItem('online_proxy_url') || '';
-            if (customProxy && !customProxy.trim().startsWith('http://') && !customProxy.trim().startsWith('https://')) {
-                customProxy = 'https://' + customProxy.trim();
+            let customProxy = localStorage.getItem('online_proxy_url');
+            if (customProxy === null) {
+                customProxy = 'loris-proxy.luojianpeng421.workers.dev';
+            }
+            customProxy = customProxy.trim();
+            if (customProxy && !customProxy.startsWith('http://') && !customProxy.startsWith('https://')) {
+                customProxy = 'https://' + customProxy;
             }
             const proxyEndpoint = isVercelOnline && customProxy
                 ? customProxy.replace(/\/$/, '')
@@ -1471,12 +1475,13 @@ document.addEventListener('DOMContentLoaded', () => {
             localStorage.setItem('modelscope_token', e.target.value.trim());
         });
     }
-    const savedOnlineProxyUrl = localStorage.getItem('online_proxy_url');
-    if (savedOnlineProxyUrl) {
-        const onlineProxyUrlInput = document.getElementById('onlineProxyUrl');
-        if (onlineProxyUrlInput) {
-            onlineProxyUrlInput.value = savedOnlineProxyUrl;
-        }
+    let savedOnlineProxyUrl = localStorage.getItem('online_proxy_url');
+    if (savedOnlineProxyUrl === null) {
+        savedOnlineProxyUrl = 'loris-proxy.luojianpeng421.workers.dev';
+    }
+    const onlineProxyUrlInput = document.getElementById('onlineProxyUrl');
+    if (onlineProxyUrlInput) {
+        onlineProxyUrlInput.value = savedOnlineProxyUrl;
     }
     const onlineProxyUrlEl = document.getElementById('onlineProxyUrl');
     if (onlineProxyUrlEl) {
