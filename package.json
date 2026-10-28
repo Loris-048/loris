@@ -1,0 +1,11 @@
+{
+  "name": "loirs",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "build": "node build.js"
+  },
+  "devDependencies": {
+    "iconv-lite": "^0.7.2"
+  }
+}
