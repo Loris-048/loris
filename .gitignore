@@ -1,0 +1,53 @@
+# ============================================
+# Loirs .gitignore — 本地全量跟踪，deploy只推线上文件
+# ============================================
+# 说明：源码（public/、server.js、构建链、测试）全部纳入本地 git，
+#      获得完整版本历史与任意回退能力。
+#      「不公开」由 deploy.js 的机制保证 ——
+#      它在临时 worktree 里 checkout --orphan 出全新分支，
+#      只 copy DEPLOY_FILES（index.html/package.json/vercel.json/
+#      .gitignore/api/config.js/api/proxy.js）这 6 个文件再提交推送，
+#      本地源码历史不会进入 GitHub。
+#      （GitHub 仓库必须公开：改私有会导致 GitHub Pages 免费版失效）
+
+# 体积庞大的安装包（不进git）
+*.exe
+*.msi
+
+# 图片（生成的输出文件太大，不跟踪）
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.webp
+
+# 含 token/密钥的配置文件（防止泄露）
+config.json
+
+# 用户上传的临时文件
+.uploads/
+
+# node_modules（如有）
+node_modules/
+
+# 临时 zip 包
+*.zip
+
+# 系统文件
+Thumbs.db
+.DS_Store
+
+# 本地打包输出（根 index.html 已是构建产物，dist/ 只是中间产物）
+dist/
+
+# 本地数据文件夹（191MB 历史 + 275MB 图片，绝不进 git）
+Loirs_Data/
+
+# AI 协作备份目录（临时回滚点，不进 git）
+.workbuddy_backup/
+
+# AI 临时工作目录（复现脚本 / 临时测试 / 日志，不进 git）
+_wtmp/
+
+# 老版 app.js 的人工快照备份（GBK 编码，无代码引用）
+temp.txt
